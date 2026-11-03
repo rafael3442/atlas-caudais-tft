@@ -15,7 +15,8 @@
   --tft: #2a78d6; --tft-band: rgba(42, 120, 214, 0.20); --hbv: #138a62; --obs: #10202b;
   --precip: #5b86b0; --temp: #d4602a;
   --split-train: #a7bccb; --split-val: #e3ab3f; --split-test: #cf6f92; --excluded: #c8cfd2;
-  --cl-a: #2a78d6; --cl-b: #eb6834; --cl-c: #1baf7a; --cl-d: #e87ba4; --below: #b9b8b2; --div-mid: #e4e3df;
+  --cl-a: #fdbf6f; --cl-b: #b2df8a; --cl-c: #a6cee3; --cl-d: #f38f8e; --below: #b9b8b2; --div-mid: #e4e3df;
+  --cl-a-edge: #d05600; --cl-b-edge: #388036; --cl-c-edge: #1341af; --cl-d-edge: #ae1920;
   --select: rgba(16, 32, 43, 0.08);
   --font-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
   --font-body: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -28,7 +29,7 @@
     --tft: #4b94ea; --tft-band: rgba(75, 148, 234, 0.26); --hbv: #2fbf8a; --obs: #e6edf1;
     --precip: #7aa3cc; --temp: #ef8250;
     --split-train: #5d7383; --split-val: #b98a2c; --split-test: #a8577a; --excluded: #3a454c;
-    --cl-a: #3987e5; --cl-b: #d95926; --cl-c: #199e70; --cl-d: #d55181; --below: #5b6166; --div-mid: #383835;
+    --below: #5b6166; --div-mid: #383835;
     --select: rgba(230, 237, 241, 0.10);
     color-scheme: dark;
   }
@@ -39,7 +40,7 @@
   --tft: #4b94ea; --tft-band: rgba(75, 148, 234, 0.26); --hbv: #2fbf8a; --obs: #e6edf1;
   --precip: #7aa3cc; --temp: #ef8250;
   --split-train: #5d7383; --split-val: #b98a2c; --split-test: #a8577a; --excluded: #3a454c;
-    --cl-a: #3987e5; --cl-b: #d95926; --cl-c: #199e70; --cl-d: #d55181; --below: #5b6166; --div-mid: #383835;
+    --below: #5b6166; --div-mid: #383835;
   --select: rgba(230, 237, 241, 0.10);
   color-scheme: dark;
 }
@@ -63,7 +64,7 @@ h2 { font-size: 24px; line-height: 1.15; }
 .basin-map { width: 100%; height: auto; display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
 .basin-map .land { fill: var(--land); stroke: var(--coast); stroke-width: 0.8; }
 .basin-map .spain { fill: var(--spain); stroke: none; }
-.basin-map .basin { stroke: var(--surface); stroke-width: 0.6; cursor: pointer; transition: opacity 120ms; }
+.basin-map .basin { stroke: var(--edge, var(--surface)); stroke-width: 0.6; cursor: pointer; transition: opacity 120ms; }
 .basin-map.metric .basin { stroke: var(--coast); stroke-width: 0.5; }
 .basin-map .basin:hover, .basin-map .basin:focus-visible { stroke: var(--ink); stroke-width: 1.4; outline: none; }
 .basin-map .basin.selected { stroke: var(--ink); stroke-width: 2.2; }
@@ -149,7 +150,7 @@ a { color: var(--tft); }
 
   <div class="tabs" role="tablist" aria-label="Vistas">
     <button type="button" role="tab" id="tab-hydro" aria-selected="true" aria-controls="view-hydro">Hidrogramas</button>
-    <button type="button" role="tab" id="tab-metric" aria-selected="false" aria-controls="view-metric" tabindex="-1">Mapa de métricas</button>
+    <button type="button" role="tab" id="tab-metric" aria-selected="false" aria-controls="view-metric" tabindex="-1">Mapa de métricas de desempenho</button>
   </div>
 
   <div class="layout" id="view-hydro" role="tabpanel" aria-labelledby="tab-hydro">
@@ -224,7 +225,7 @@ a { color: var(--tft); }
   <div class="metric-view" id="view-metric" role="tabpanel" aria-labelledby="tab-metric" hidden>
     <svg id="mmap" class="basin-map metric" role="group" aria-label="Métrica por bacia"></svg>
     <section class="detail">
-      <h2 id="metric-title">Mapa de métricas</h2>
+      <h2>Mapa de métricas de desempenho</h2>
       <div class="controls">
         <div class="control">
           <span class="control-label" id="lbl-mmode">Modo</span>
@@ -275,8 +276,8 @@ a { color: var(--tft); }
       desc: 'Erro da distribuição prevista. 0 é perfeito. Para o HBV, que dá um só valor, é igual ao MAE.' },
     mae: { label: 'MAE (L s⁻¹ km⁻²)', better: 'low',
       desc: 'Erro absoluto médio da média prevista. 0 é perfeito.' },
-    quantile_loss: { label: 'Perda quantílica (L s⁻¹ km⁻²)', better: 'low', tftOnly: true,
-      desc: 'Perda quantílica (pinball) média sobre os quantis previstos. 0 é perfeito. Só para o TFT.' },
+    quantile_loss: { label: 'Quantile loss (L s⁻¹ km⁻²)', better: 'low', tftOnly: true,
+      desc: 'Quantile loss (pinball loss) média sobre os quantis previstos. 0 é perfeito. Só para o TFT.' },
     relative_bias: { label: 'Viés relativo', better: 'zero', fixed: [-0.3, -0.15, -0.05, 0.05, 0.15, 0.3], tftOnly: true,
       desc: 'Diferença entre o caudal médio previsto e o observado, relativa ao observado: negativo subestima, positivo sobrestima. Só para o TFT.' },
     reliability: { label: 'Fiabilidade (α)', better: 'high', tftOnly: true,
@@ -335,7 +336,7 @@ a { color: var(--tft); }
   }
 
   // ---------------------------------------------------------------- map
-  function drawBasins(svg, fillOf, tipOf, onPick) {
+  function drawBasins(svg, fillOf, tipOf, onPick, edgeOf) {
     const m = state.map, NS = 'http://www.w3.org/2000/svg';
     svg.setAttribute('viewBox', m.viewBox.join(' '));
     svg.innerHTML = '';
@@ -349,6 +350,7 @@ a { color: var(--tft); }
       const p = add(shape.d, 'basin');
       p.dataset.code = c.code;
       p.style.fill = fillOf(c);
+      if (edgeOf) p.style.setProperty('--edge', edgeOf(c));
       p.setAttribute('tabindex', '0');
       p.setAttribute('role', 'button');
       p.setAttribute('aria-label', `${c.name} (${c.code})`);
@@ -361,11 +363,12 @@ a { color: var(--tft); }
 
   function drawMap() {
     drawBasins($('map'), (c) => `var(--cl-${c.cluster.toLowerCase()})`,
-      (c) => `<b>${c.name}</b><br>${c.code} · agrupamento ${c.cluster}`, select);
+      (c) => `<b>${c.name}</b><br>${c.code} · agrupamento ${c.cluster}`, select,
+      (c) => `var(--cl-${c.cluster.toLowerCase()}-edge)`);
     const n = {};
     for (const c of state.meta.catchments) n[c.cluster] = (n[c.cluster] || 0) + 1;
     $('cluster-legend').innerHTML = Object.keys(n).sort().map((k) =>
-      `<span class="swatch-row"><span class="swatch" style="background:var(--cl-${k.toLowerCase()})"></span>Agrupamento ${k} (${n[k]})</span>`).join('');
+      `<span class="swatch-row"><span class="swatch" style="background:var(--cl-${k.toLowerCase()}); box-shadow: inset 0 0 0 1px var(--cl-${k.toLowerCase()}-edge)"></span>Agrupamento ${k} (${n[k]})</span>`).join('');
   }
 
   function showTip(e, html) {
@@ -649,11 +652,10 @@ a { color: var(--tft); }
     drawBasins($('mmap'), (c) => { const v = val(c); return v == null ? 'var(--excluded)' : cls.colors[classOf(v, cls.breaks)]; },
       (c) => `<b>${c.name}</b><br>${c.code} · agrupamento ${c.cluster}<br>${def.label}: ${num(val(c), cls.digits)}`,
       openHydrograph);
-    $('metric-title').textContent = `${def.label} · ${sourceName(mode, model)}`;
     $('metric-desc').textContent = def.desc;
     const hint = { high: 'mais escuro = melhor', low: 'mais escuro = melhor (erro menor)',
       zero: 'vermelho = subestima · cinzento = sem viés · azul = sobrestima' }[def.better];
-    $('bins-title').textContent = `Classes (n.º de bacias por baixo): ${hint}${def.fixed && def.better === 'high' ? ' · cinzento = abaixo de 0' : ''}`;
+    $('bins-title').textContent = `${def.label} · ${sourceName(mode, model)}. Classes (n.º de bacias por baixo): ${hint}${def.fixed && def.better === 'high' ? ' · cinzento = abaixo de 0' : ''}`;
     const bins = cls.colors.map((col, i) => [col, cls.labels[i], counts[i]]);
     if (missing) bins.push(['var(--excluded)', 'sem valor', missing]);
     $('bins').innerHTML = bins.map(([col, t, n]) => `<span style="background:${col}" title="${t}: ${n} bacias"></span>`).join('');
