@@ -68,6 +68,8 @@ h2 { font-size: 24px; line-height: 1.15; }
 .basin-map.metric .basin { stroke: var(--coast); stroke-width: 0.5; }
 .basin-map .basin:hover, .basin-map .basin:focus-visible { stroke: var(--ink); stroke-width: 1.4; outline: none; }
 .basin-map .basin.selected { stroke: var(--ink); stroke-width: 2.2; }
+.basin-map .station { fill: var(--ink); stroke: var(--surface); stroke-width: 1.2; pointer-events: none; }
+.dot { width: 8px; height: 8px; border-radius: 50%; background: var(--ink); display: inline-block; flex: none; margin: 0 5px; }
 .tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
 .tabs button { border: 0; background: transparent; padding: 8px 14px; cursor: pointer; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
 .tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--tft); }
@@ -102,6 +104,7 @@ select { background: var(--surface); border: 1px solid var(--line); border-radiu
 .segmented button:focus-visible, .toggle input:focus-visible + span, .zoom button:focus-visible { outline: 2px solid var(--tft); outline-offset: 2px; }
 .toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
 .toggle input { accent-color: var(--tft); width: 16px; height: 16px; margin: 0; }
+.toggle input:disabled + span { opacity: 0.45; }
 .zoom { display: inline-flex; gap: 6px; }
 .zoom button { background: transparent; border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; cursor: pointer; }
 .metrics-wrap { overflow-x: auto; }
@@ -181,12 +184,8 @@ a { color: var(--tft); }
           </div>
         </div>
         <div class="control">
-          <span class="control-label">Mostrar</span>
-          <div class="controls" style="gap: 14px">
-            <label class="toggle" for="opt-hbv"><input type="checkbox" id="opt-hbv" checked><span>HBV</span></label>
-            <label class="toggle" for="opt-lstm" id="lbl-lstm"><input type="checkbox" id="opt-lstm" checked><span>LSTM</span></label>
-            <label class="toggle" for="opt-log"><input type="checkbox" id="opt-log"><span>Escala log.</span></label>
-          </div>
+          <span class="control-label">Caudal</span>
+          <label class="toggle" for="opt-log"><input type="checkbox" id="opt-log"><span>Escala logarítmica</span></label>
         </div>
         <div class="control">
           <span class="control-label">Período</span>
@@ -197,6 +196,11 @@ a { color: var(--tft); }
         </div>
       </div>
 
+      <div class="control">
+        <span class="control-label">Mostrar nos gráficos</span>
+        <div class="controls" id="show-toggles" style="gap: 8px 16px"></div>
+      </div>
+
       <div class="metrics-wrap"><table class="metrics" id="metrics"></table></div>
 
       <div class="readout" id="readout">Passe o cursor sobre os gráficos para ler os valores; arraste para ampliar.</div>
@@ -205,9 +209,9 @@ a { color: var(--tft); }
           <div class="split-legend" id="split-legend"></div>
           <div id="chart-split"></div>
         </div>
-        <div class="panel-label">Precipitação (mm/dia)</div>
+        <div class="panel-label" id="lbl-p">Precipitação (mm/dia)</div>
         <div id="chart-p"></div>
-        <div class="panel-label">Temperatura média (°C)</div>
+        <div class="panel-label" id="lbl-t">Temperatura média (°C)</div>
         <div id="chart-t"></div>
         <div class="panel-label">Caudal específico (L s⁻¹ km⁻²)</div>
         <div id="chart-q"></div>
@@ -252,6 +256,7 @@ a { color: var(--tft); }
         <div id="bins-title"></div>
         <div class="bins" id="bins"></div>
         <div class="bin-labels" id="bin-labels"></div>
+        <div class="swatch-row"><span class="dot"></span>Estação hidrométrica</div>
       </div>
       <div class="metrics-wrap"><table class="metrics" id="metric-summary"></table></div>
       <div class="notes">
@@ -303,7 +308,8 @@ a { color: var(--tft); }
   const fmtDate = (tpl) => uPlot.fmtDate(tpl, ptNames);
   const dayLabel = uPlot.fmtDate('{D} {MMM} {YYYY}', ptNames);
 
-  const state = { meta: null, map: null, code: null, mode: 'U', hbv: true, lstm: true, log: false, tab: 'hydro', mmode: 'U', model: 'tft', metric: 'nse',
+  const state = { meta: null, map: null, code: null, mode: 'U', log: false,
+                  show: { p: true, t: true, obs: true, tft: true, band: true, lstm: false, hbv: false }, tab: 'hydro', mmode: 'U', model: 'tft', metric: 'nse',
                   cache: new Map(), data: null, charts: {}, syncing: false };
 
   // ---------------------------------------------------------------- data
@@ -327,7 +333,7 @@ a { color: var(--tft); }
 
   async function loadStation(c) {
     if (!state.cache.has(c.file)) {
-      const res = await fetch(`data/${c.file}.txt?v=0fcae2390c`);
+      const res = await fetch(`data/${c.file}.txt?v=547ea7b15d`);
       if (!res.ok) throw new Error(`Não foi possível obter os dados de ${c.code} (${res.status}).`);
       const bin = atob((await res.text()).trim()), bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -361,6 +367,12 @@ a { color: var(--tft); }
       p.addEventListener('mousemove', (e) => showTip(e, tipOf(c)));
       p.addEventListener('mouseleave', hideTip);
     }
+    for (const [code, [x, y]] of Object.entries(m.stations || {})) {
+      if (!byCode.has(code)) continue;
+      const dot = document.createElementNS(NS, 'circle');
+      dot.setAttribute('cx', x); dot.setAttribute('cy', y); dot.setAttribute('r', 3.4); dot.setAttribute('class', 'station');
+      svg.appendChild(dot);
+    }
   }
 
   function drawMap() {
@@ -370,7 +382,8 @@ a { color: var(--tft); }
     const n = {};
     for (const c of state.meta.catchments) n[c.cluster] = (n[c.cluster] || 0) + 1;
     $('cluster-legend').innerHTML = Object.keys(n).sort().map((k) =>
-      `<span class="swatch-row"><span class="swatch" style="background:var(--cl-${k.toLowerCase()}); box-shadow: inset 0 0 0 1px var(--cl-${k.toLowerCase()}-edge)"></span>Agrupamento ${k} (${n[k]})</span>`).join('');
+      `<span class="swatch-row"><span class="swatch" style="background:var(--cl-${k.toLowerCase()}); box-shadow: inset 0 0 0 1px var(--cl-${k.toLowerCase()}-edge)"></span>Agrupamento ${k} (${n[k]})</span>`).join('') +
+      '<span class="swatch-row" style="grid-column: 1 / -1"><span class="dot"></span>Estação hidrométrica</span>';
   }
 
   function showTip(e, html) {
@@ -449,8 +462,8 @@ a { color: var(--tft); }
       { label: 'Mediana TFT', stroke: css('--tft'), width: 1.6, points: { show: false } },
       { label: 'p90', stroke: 'transparent', points: { show: false } },
       { label: 'Observado', stroke: css('--obs'), width: 1.3, points: { show: false } },
-      { label: 'HBV', stroke: css('--hbv'), width: 1.3, dash: [5, 3], points: { show: false }, show: state.hbv },
-      { label: 'LSTM', stroke: css('--lstm'), width: 1.6, dash: [2, 3], points: { show: false }, show: showLstm() },
+      { label: 'HBV', stroke: css('--hbv'), width: 1.3, dash: [5, 3], points: { show: false }, show: false },
+      { label: 'LSTM', stroke: css('--lstm'), width: 1.6, dash: [2, 3], points: { show: false }, show: false },
     ];
     q.bands = [{ series: [3, 1], fill: css('--tft-band') }];
     state.charts.q = new uPlot(q, [x, [], [], [], [], [], []], $('chart-q'));
@@ -491,9 +504,11 @@ a { color: var(--tft); }
     const [lo, mid, hi] = seriesFor(state.mode);
     state.charts.p.setData([state.x, d.P], false);
     state.charts.t.setData([state.x, d.T], false);
-    state.charts.q.setData([state.x, clampLog(lo), clampLog(mid), clampLog(hi), clampLog(d.Qobs), clampLog(d.HBV), clampLog(d.L_p50)], false);
-    state.charts.q.setSeries(5, { show: state.hbv });
-    state.charts.q.setSeries(6, { show: showLstm() });
+    const band = visible('band'), none = new Array(state.x.length).fill(null);
+    state.charts.q.setData([state.x, band ? clampLog(lo) : none, clampLog(mid), band ? clampLog(hi) : none,
+      clampLog(d.Qobs), clampLog(d.HBV), clampLog(d.L_p50)], false);
+    [[2, 'tft'], [4, 'obs'], [5, 'hbv'], [6, 'lstm']].forEach(([i, id]) => state.charts.q.setSeries(i, { show: visible(id) }));
+    for (const id of ['p', 't']) { $(`chart-${id}`).hidden = !state.show[id]; $(`lbl-${id}`).hidden = !state.show[id]; }
     $('split-wrap').hidden = state.mode !== 'S';
     state.charts.split.setData([state.x, new Array(state.x.length).fill(null)], false);
     if (resetZoom) zoomTo(c.extent[state.mode] || c.extent.all);
@@ -515,11 +530,14 @@ a { color: var(--tft); }
     const i = u.cursor.idx;
     if (i == null || !state.data) return;
     const d = state.data, [lo, mid, hi] = seriesFor(state.mode);
-    const parts = [`<b>${dayLabel(new Date(state.x[i] * 1000))}</b>`,
-      `P ${num(d.P[i], 1)} mm`, `T ${num(d.T[i], 1)} °C`, `obs. ${num(d.Qobs[i], 1)}`,
-      `TFT ${num(mid[i], 1)} [${num(lo[i], 1)}–${num(hi[i], 1)}]`];
-    if (state.hbv) parts.push(`HBV ${num(d.HBV[i], 1)}`);
-    if (showLstm()) parts.push(`LSTM ${num(d.L_p50[i], 1)} [${num(d.L_p10[i], 1)}–${num(d.L_p90[i], 1)}]`);
+    const parts = [`<b>${dayLabel(new Date(state.x[i] * 1000))}</b>`];
+    if (state.show.p) parts.push(`P ${num(d.P[i], 1)} mm`);
+    if (state.show.t) parts.push(`T ${num(d.T[i], 1)} °C`);
+    if (visible('obs')) parts.push(`obs. ${num(d.Qobs[i], 1)}`);
+    if (visible('tft')) parts.push(`TFT ${num(mid[i], 1)}${visible('band') ? ` [${num(lo[i], 1)}–${num(hi[i], 1)}]` : ''}`);
+    else if (visible('band')) parts.push(`TFT [${num(lo[i], 1)}–${num(hi[i], 1)}]`);
+    if (visible('lstm')) parts.push(`LSTM ${num(d.L_p50[i], 1)}`);
+    if (visible('hbv')) parts.push(`HBV ${num(d.HBV[i], 1)}`);
     if (state.mode === 'S' && SPLIT[d.S_split[i]]) parts.push(SPLIT[d.S_split[i]][0].toLowerCase());
     $('readout').innerHTML = parts.join(' · ');
   }
@@ -557,10 +575,8 @@ a { color: var(--tft); }
   }
 
   function renderLegend() {
-    const items = [['line', '--obs', 'Observado'], ['line', '--tft', 'TFT: mediana'], ['band', '--tft-band', 'TFT: intervalo 10–90 %']];
-    if (state.hbv) items.push(['dash', '--hbv', 'HBV']);
-    if (showLstm()) items.push(['dot', '--lstm', 'LSTM: mediana']);
-    $('legend').innerHTML = items.map(([kind, tok, t]) => `<span>${key(kind, tok)}${t}</span>`).join('');
+    const items = LAYERS.filter((l) => l.flow && visible(l.id));
+    $('legend').innerHTML = items.map((l) => `<span>${key(l.kind, l.tok)}${l.label}</span>`).join('');
     $('split-legend').innerHTML = Object.values(SPLIT).map(([t, tok]) =>
       `<span><span class="swatch" style="background:var(${tok})"></span> ${t}</span>`).join('');
   }
@@ -572,13 +588,31 @@ a { color: var(--tft); }
       b.disabled = !c.available[b.dataset.mode];
     });
     const lstmOk = state.mode === 'U' && c.available.L;
-    $('opt-lstm').disabled = !lstmOk;
-    $('lbl-lstm').title = lstmOk ? '' : 'O LSTM só foi avaliado em condições de bacia não monitorizada';
+    $('show-lstm').disabled = !lstmOk;
+    $('lbl-show-lstm').title = lstmOk ? '' : 'O LSTM só foi avaliado em condições de bacia não monitorizada';
   }
 
-  function showLstm() {
-    const c = state.meta && current();
-    return state.lstm && state.mode === 'U' && !!(c && c.available.L);
+  // What the charts show: the two input panels and the streamflow layers (flow: in the q legend)
+  const LAYERS = [
+    { id: 'p', label: 'Precipitação', kind: 'band', tok: '--precip' },
+    { id: 't', label: 'Temperatura', kind: 'line', tok: '--temp' },
+    { id: 'obs', label: 'Observado', kind: 'line', tok: '--obs', flow: true },
+    { id: 'tft', label: 'TFT: mediana', kind: 'line', tok: '--tft', flow: true },
+    { id: 'band', label: 'TFT: intervalo 10–90 %', kind: 'band', tok: '--tft-band', flow: true },
+    { id: 'lstm', label: 'LSTM: mediana', kind: 'dot', tok: '--lstm', flow: true },
+    { id: 'hbv', label: 'HBV', kind: 'dash', tok: '--hbv', flow: true },
+  ];
+
+  function visible(id) {
+    if (!state.show[id]) return false;
+    if (id === 'lstm') { const c = current(); return state.mode === 'U' && !!(c && c.available.L); }
+    return true;
+  }
+
+  function renderToggles() {
+    $('show-toggles').innerHTML = LAYERS.map((l) => `<label class="toggle" for="show-${l.id}" id="lbl-show-${l.id}">
+      <input type="checkbox" id="show-${l.id}"${state.show[l.id] ? ' checked' : ''}><span>${key(l.kind, l.tok)}${l.label}</span></label>`).join('');
+    for (const l of LAYERS) $(`show-${l.id}`).addEventListener('change', (e) => { state.show[l.id] = e.target.checked; render(false); });
   }
 
   async function select(code) {
@@ -724,8 +758,6 @@ a { color: var(--tft); }
       state.mode = b.dataset.mode;
       renderControls(); render(true);
     }));
-    $('opt-hbv').addEventListener('change', (e) => { state.hbv = e.target.checked; render(false); });
-    $('opt-lstm').addEventListener('change', (e) => { state.lstm = e.target.checked; render(false); });
     $('opt-log').addEventListener('change', (e) => {
       state.log = e.target.checked;
       const s = state.charts.q.scales.x, keep = [s.min, s.max];
@@ -751,7 +783,7 @@ a { color: var(--tft); }
 
   async function start() {
     try {
-      const [meta, map] = await Promise.all([fetch('meta.json?v=0fcae2390c').then((r) => r.json()), fetch('map.json?v=0fcae2390c').then((r) => r.json())]);
+      const [meta, map] = await Promise.all([fetch('meta.json?v=547ea7b15d').then((r) => r.json()), fetch('map.json?v=547ea7b15d').then((r) => r.json())]);
       state.meta = meta; state.map = map;
       const t0 = Date.parse(meta.start + 'T12:00:00Z') / 1000;
       state.x = Array.from({ length: meta.n }, (_, i) => t0 + i * 86400);
@@ -759,7 +791,7 @@ a { color: var(--tft); }
       sel.innerHTML = [...meta.catchments].sort((a, b) => a.name.localeCompare(b.name, 'pt'))
         .map((c) => `<option value="${c.code}">${c.name} (${c.code})</option>`).join('');
       $('metric-select').innerHTML = Object.entries(METRICS).map(([k, d]) => `<option value="${k}">${d.label}</option>`).join('');
-      drawMap(); buildCharts(); bind();
+      renderToggles(); drawMap(); buildCharts(); bind();
       await select(meta.default || meta.catchments[0].code);
       if (location.hash === '#metricas') showTab('metric');
     } catch (err) {
