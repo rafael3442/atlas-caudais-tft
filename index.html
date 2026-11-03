@@ -15,6 +15,7 @@
   --tft: #2a78d6; --tft-band: rgba(42, 120, 214, 0.20); --hbv: #138a62; --obs: #10202b;
   --precip: #5b86b0; --temp: #d4602a;
   --split-train: #a7bccb; --split-val: #e3ab3f; --split-test: #cf6f92; --excluded: #c8cfd2;
+  --cl-a: #2a78d6; --cl-b: #eb6834; --cl-c: #1baf7a; --cl-d: #e87ba4; --below: #b9b8b2; --div-mid: #e4e3df;
   --select: rgba(16, 32, 43, 0.08);
   --font-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
   --font-body: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -27,6 +28,7 @@
     --tft: #4b94ea; --tft-band: rgba(75, 148, 234, 0.26); --hbv: #2fbf8a; --obs: #e6edf1;
     --precip: #7aa3cc; --temp: #ef8250;
     --split-train: #5d7383; --split-val: #b98a2c; --split-test: #a8577a; --excluded: #3a454c;
+    --cl-a: #3987e5; --cl-b: #d95926; --cl-c: #199e70; --cl-d: #d55181; --below: #5b6166; --div-mid: #383835;
     --select: rgba(230, 237, 241, 0.10);
     color-scheme: dark;
   }
@@ -37,10 +39,12 @@
   --tft: #4b94ea; --tft-band: rgba(75, 148, 234, 0.26); --hbv: #2fbf8a; --obs: #e6edf1;
   --precip: #7aa3cc; --temp: #ef8250;
   --split-train: #5d7383; --split-val: #b98a2c; --split-test: #a8577a; --excluded: #3a454c;
+    --cl-a: #3987e5; --cl-b: #d95926; --cl-c: #199e70; --cl-d: #d55181; --below: #5b6166; --div-mid: #383835;
   --select: rgba(230, 237, 241, 0.10);
   color-scheme: dark;
 }
 * { box-sizing: border-box; }
+[hidden] { display: none !important; }
 body {
   background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45;
   padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
@@ -56,16 +60,25 @@ h2 { font-size: 24px; line-height: 1.15; }
 @media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
 .map-panel { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: grid; gap: 10px; }
 @media (max-width: 900px) { .map-panel { position: static; max-width: 420px; width: 100%; justify-self: center; } }
-#map { width: 100%; height: auto; display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
-#map .land { fill: var(--land); stroke: var(--coast); stroke-width: 0.8; }
-#map .spain { fill: var(--spain); stroke: none; }
-#map .basin { stroke: var(--surface); stroke-width: 0.6; cursor: pointer; transition: opacity 120ms; }
-#map .basin:hover, #map .basin:focus-visible { stroke: var(--ink); stroke-width: 1.4; outline: none; }
-#map .basin.selected { stroke: var(--ink); stroke-width: 2.2; }
+.basin-map { width: 100%; height: auto; display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.basin-map .land { fill: var(--land); stroke: var(--coast); stroke-width: 0.8; }
+.basin-map .spain { fill: var(--spain); stroke: none; }
+.basin-map .basin { stroke: var(--surface); stroke-width: 0.6; cursor: pointer; transition: opacity 120ms; }
+.basin-map.metric .basin { stroke: var(--coast); stroke-width: 0.5; }
+.basin-map .basin:hover, .basin-map .basin:focus-visible { stroke: var(--ink); stroke-width: 1.4; outline: none; }
+.basin-map .basin.selected { stroke: var(--ink); stroke-width: 2.2; }
+.tabs { display: flex; gap: 4px; border-bottom: 1px solid var(--line); }
+.tabs button { border: 0; background: transparent; padding: 8px 14px; cursor: pointer; font-weight: 600; color: var(--muted); border-bottom: 2px solid transparent; margin-bottom: -1px; }
+.tabs button[aria-selected="true"] { color: var(--ink); border-bottom-color: var(--tft); }
+.tabs button:focus-visible { outline: 2px solid var(--tft); outline-offset: 2px; }
+.metric-view { display: grid; grid-template-columns: minmax(280px, 520px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .metric-view { grid-template-columns: minmax(0, 1fr); } .metric-view > .basin-map { max-width: 460px; justify-self: center; } }
+.metric-desc { margin: 0; color: var(--muted); max-width: 70ch; }
+.cluster-legend { display: grid; grid-template-columns: repeat(2, max-content); gap: 4px 16px; }
 .map-legend { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
-.ramp { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
-.ramp span { height: 10px; border-radius: 2px; }
-.ramp-labels { display: flex; justify-content: space-between; font-family: var(--font-data); font-size: 11px; }
+.bins, .bin-labels { display: grid; grid-auto-flow: column; grid-auto-columns: minmax(0, 1fr); gap: 2px; max-width: 560px; }
+.bins span { height: 12px; border-radius: 2px; }
+.bin-labels { font-family: var(--font-data); font-size: 10.5px; text-align: center; line-height: 1.25; }
 .swatch-row { display: flex; align-items: center; gap: 8px; }
 .swatch { width: 18px; height: 10px; border-radius: 2px; display: inline-block; flex: none; }
 .station-pick { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
@@ -97,7 +110,9 @@ table.metrics th:first-child, table.metrics td:first-child { text-align: left; }
 table.metrics thead th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
 table.metrics td { font-family: var(--font-data); font-size: 13.5px; }
 table.metrics td:first-child { font-family: var(--font-body); font-size: 14px; }
-.key { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 7px; border-radius: 2px; }
+table.metrics tr.current td { font-weight: 600; color: var(--ink); }
+#metric-summary { min-width: 0; }
+.key { display: inline-block; width: 20px; height: 3px; vertical-align: middle; margin-right: 7px; border-radius: 2px; }
 .readout { font-family: var(--font-data); font-size: 12.5px; color: var(--muted); min-height: 1.4em; font-variant-numeric: tabular-nums; }
 .readout b { color: var(--ink); font-weight: 500; }
 .charts { display: grid; gap: 2px; min-width: 0; }
@@ -132,14 +147,17 @@ a { color: var(--tft); }
     <p>Previsões de caudal diário do Temporal Fusion Transformer nas bacias naturais de Portugal continental (Francisco e Matos, 2026), com antecedência de 3 dias. Escolha uma bacia no mapa para ver a precipitação, a temperatura e o caudal observado e previsto.</p>
   </header>
 
-  <div class="layout">
+  <div class="tabs" role="tablist" aria-label="Vistas">
+    <button type="button" role="tab" id="tab-hydro" aria-selected="true" aria-controls="view-hydro">Hidrogramas</button>
+    <button type="button" role="tab" id="tab-metric" aria-selected="false" aria-controls="view-metric" tabindex="-1">Mapa de métricas</button>
+  </div>
+
+  <div class="layout" id="view-hydro" role="tabpanel" aria-labelledby="tab-hydro">
     <aside class="map-panel" aria-label="Mapa das bacias">
-      <svg id="map" role="group" aria-label="Bacias hidrográficas estudadas"></svg>
+      <svg id="map" class="basin-map" role="group" aria-label="Bacias hidrográficas estudadas"></svg>
       <div class="map-legend">
-        <div>NSE do TFT em bacia não monitorizada (modelo selecionado no artigo)</div>
-        <div class="ramp" id="ramp"></div>
-        <div class="ramp-labels" id="ramp-labels"></div>
-        <div class="swatch-row"><span class="swatch" style="background: repeating-linear-gradient(45deg, var(--excluded) 0 3px, var(--land) 3px 6px)"></span>Excluída dos resultados do artigo</div>
+        <div>Agrupamentos geográficos</div>
+        <div class="cluster-legend" id="cluster-legend"></div>
       </div>
       <label class="station-pick" for="station-select">Ou escolha da lista
         <select id="station-select"></select>
@@ -202,6 +220,43 @@ a { color: var(--tft); }
       </div>
     </section>
   </div>
+
+  <div class="metric-view" id="view-metric" role="tabpanel" aria-labelledby="tab-metric" hidden>
+    <svg id="mmap" class="basin-map metric" role="group" aria-label="Métrica por bacia"></svg>
+    <section class="detail">
+      <h2 id="metric-title">Mapa de métricas</h2>
+      <div class="controls">
+        <div class="control">
+          <span class="control-label" id="lbl-mmode">Modo</span>
+          <div class="segmented" role="group" aria-labelledby="lbl-mmode">
+            <button type="button" data-mmode="U" aria-pressed="true">Não monitorizado</button>
+            <button type="button" data-mmode="S" aria-pressed="false">Especializado</button>
+          </div>
+        </div>
+        <div class="control">
+          <span class="control-label" id="lbl-model">Modelo</span>
+          <div class="segmented" role="group" aria-labelledby="lbl-model">
+            <button type="button" data-model="tft" aria-pressed="true">TFT</button>
+            <button type="button" data-model="hbv" aria-pressed="false">HBV</button>
+          </div>
+        </div>
+        <label class="control" for="metric-select"><span class="control-label">Métrica</span>
+          <select id="metric-select"></select>
+        </label>
+      </div>
+      <p class="metric-desc" id="metric-desc"></p>
+      <div class="map-legend">
+        <div id="bins-title"></div>
+        <div class="bins" id="bins"></div>
+        <div class="bin-labels" id="bin-labels"></div>
+      </div>
+      <div class="metrics-wrap"><table class="metrics" id="metric-summary"></table></div>
+      <div class="notes">
+        <p>Valores publicados no artigo, à antecedência de 3 dias: em <b>não monitorizado</b>, no registo completo de cada bacia; em <b>especializado</b>, no período de teste. O HBV foi calibrado em cada bacia com todos os dados locais. As classes são as mesmas para os dois modos e os dois modelos, para os mapas serem comparáveis.</p>
+        <p>Clique numa bacia para abrir o hidrograma.</p>
+      </div>
+    </section>
+  </div>
 </div>
 <div class="tooltip" id="tooltip" hidden></div>
 
@@ -209,7 +264,26 @@ a { color: var(--tft); }
 <script>
 (() => {
   const RAMP = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
-  const RAMP_BOUNDS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8];
+  const DIVERGING = ['#a8302f', '#e34948', '#f3a7a6', 'var(--div-mid)', '#9ec5f4', '#3987e5', '#184f95'];
+  // better: which end is good; fixed: class breaks shared by every map, else pooled sextiles
+  const METRICS = {
+    nse: { label: 'NSE', better: 'high', fixed: [0, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8],
+      desc: 'Eficiência de Nash–Sutcliffe da média prevista. 1 é perfeito; abaixo de 0, a previsão é pior do que a média observada.' },
+    kge: { label: 'KGE', better: 'high', fixed: [0, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8],
+      desc: 'Eficiência de Kling–Gupta: combina correlação, variabilidade e viés. 1 é perfeito.' },
+    crps: { label: 'CRPS (L s⁻¹ km⁻²)', better: 'low',
+      desc: 'Erro da distribuição prevista. 0 é perfeito. Para o HBV, que dá um só valor, é igual ao MAE.' },
+    mae: { label: 'MAE (L s⁻¹ km⁻²)', better: 'low',
+      desc: 'Erro absoluto médio da média prevista. 0 é perfeito.' },
+    quantile_loss: { label: 'Perda quantílica (L s⁻¹ km⁻²)', better: 'low', tftOnly: true,
+      desc: 'Perda quantílica (pinball) média sobre os quantis previstos. 0 é perfeito. Só para o TFT.' },
+    relative_bias: { label: 'Viés relativo', better: 'zero', fixed: [-0.3, -0.15, -0.05, 0.05, 0.15, 0.3], tftOnly: true,
+      desc: 'Diferença entre o caudal médio previsto e o observado, relativa ao observado: negativo subestima, positivo sobrestima. Só para o TFT.' },
+    reliability: { label: 'Fiabilidade (α)', better: 'high', tftOnly: true,
+      desc: 'Fiabilidade α do histograma PIT: 1 quando a distribuição prevista está perfeitamente calibrada. Só para o TFT.' },
+    resolution_relative: { label: 'Resolução relativa', better: 'high', tftOnly: true,
+      desc: 'Média temporal da razão entre a média e o desvio padrão da distribuição prevista: valores maiores indicam distribuições mais estreitas. Só para o TFT.' },
+  };
   const MODES = { U: 'Não monitorizado', S: 'Especializado' };
   const SPLIT = { 1: ['Treino', '--split-train'], 2: ['Validação', '--split-val'], 3: ['Teste', '--split-test'] };
   const MISSING = 65535;
@@ -226,7 +300,7 @@ a { color: var(--tft); }
   const fmtDate = (tpl) => uPlot.fmtDate(tpl, ptNames);
   const dayLabel = uPlot.fmtDate('{D} {MMM} {YYYY}', ptNames);
 
-  const state = { meta: null, map: null, code: null, mode: 'U', hbv: true, log: false,
+  const state = { meta: null, map: null, code: null, mode: 'U', hbv: true, log: false, tab: 'hydro', mmode: 'U', model: 'tft', metric: 'nse',
                   cache: new Map(), data: null, charts: {}, syncing: false };
 
   // ---------------------------------------------------------------- data
@@ -261,17 +335,10 @@ a { color: var(--tft); }
   }
 
   // ---------------------------------------------------------------- map
-  function rampColor(v) {
-    if (v == null) return css('--excluded');
-    for (let i = RAMP.length - 1; i >= 0; i--) if (v >= RAMP_BOUNDS[i]) return RAMP[i];
-    return RAMP[0];
-  }
-
-  function drawMap() {
-    const svg = $('map'), m = state.map, NS = 'http://www.w3.org/2000/svg';
+  function drawBasins(svg, fillOf, tipOf, onPick) {
+    const m = state.map, NS = 'http://www.w3.org/2000/svg';
     svg.setAttribute('viewBox', m.viewBox.join(' '));
-    svg.innerHTML = `<defs><pattern id="hatch" patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)">
-      <rect width="5" height="5" fill="var(--land)"></rect><rect width="2.2" height="5" fill="var(--excluded)"></rect></pattern></defs>`;
+    svg.innerHTML = '';
     const add = (d, cls) => { const p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); p.setAttribute('class', cls); svg.appendChild(p); return p; };
     add(m.spain, 'spain');
     add(m.portugal, 'land');
@@ -281,23 +348,29 @@ a { color: var(--tft); }
       if (!c) continue;
       const p = add(shape.d, 'basin');
       p.dataset.code = c.code;
-      p.setAttribute('fill', c.excluded ? 'url(#hatch)' : rampColor(c.map_nse));
+      p.style.fill = fillOf(c);
       p.setAttribute('tabindex', '0');
       p.setAttribute('role', 'button');
       p.setAttribute('aria-label', `${c.name} (${c.code})`);
-      p.addEventListener('click', () => select(c.code));
-      p.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(c.code); } });
-      p.addEventListener('mousemove', (e) => showTip(e, c));
+      p.addEventListener('click', () => onPick(c.code));
+      p.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); onPick(c.code); } });
+      p.addEventListener('mousemove', (e) => showTip(e, tipOf(c)));
       p.addEventListener('mouseleave', hideTip);
     }
-    const ramp = $('ramp');
-    ramp.innerHTML = RAMP.map((col) => `<span style="background:${col}"></span>`).join('');
-    $('ramp-labels').innerHTML = RAMP_BOUNDS.map((b) => `<span>${num(b, 1)}</span>`).join('');
   }
 
-  function showTip(e, c) {
+  function drawMap() {
+    drawBasins($('map'), (c) => `var(--cl-${c.cluster.toLowerCase()})`,
+      (c) => `<b>${c.name}</b><br>${c.code} · agrupamento ${c.cluster}`, select);
+    const n = {};
+    for (const c of state.meta.catchments) n[c.cluster] = (n[c.cluster] || 0) + 1;
+    $('cluster-legend').innerHTML = Object.keys(n).sort().map((k) =>
+      `<span class="swatch-row"><span class="swatch" style="background:var(--cl-${k.toLowerCase()})"></span>Agrupamento ${k} (${n[k]})</span>`).join('');
+  }
+
+  function showTip(e, html) {
     const t = $('tooltip');
-    t.innerHTML = `<b>${c.name}</b><br>${c.code} · agrupamento ${c.cluster}<br>NSE (não monitorizado): ${num(c.map_nse)}${c.excluded ? '<br>excluída dos resultados' : ''}`;
+    t.innerHTML = html;
     t.hidden = false;
     const x = Math.min(e.clientX + 14, window.innerWidth - t.offsetWidth - 8);
     t.style.left = `${x}px`; t.style.top = `${e.clientY + 14}px`;
@@ -450,26 +523,32 @@ a { color: var(--tft); }
     $('st-name').textContent = c.name;
     $('st-code').textContent = c.code;
     const chips = [`Agrupamento ${c.cluster}`, `${num(c.area, 0)} km²`, `P média ${num(c.precip, 0)} mm/ano`];
-    $('st-chips').innerHTML = chips.map((t) => `<span class="chip">${t}</span>`).join('') +
-      (c.excluded ? '<span class="chip warn">Excluída dos resultados do artigo</span>' : '');
+    $('st-chips').innerHTML = chips.map((t) => `<span class="chip">${t}</span>`).join('');
   }
+
+  const KEY = {
+    line: (tok) => `background:var(${tok})`,
+    dash: (tok) => `background:repeating-linear-gradient(90deg, var(${tok}) 0 5px, transparent 5px 8px)`,
+    band: (tok) => `background:var(${tok}); height:10px`,
+  };
+  const key = (kind, tok) => `<span class="key" style="${KEY[kind](tok)}"></span>`;
 
   function renderMetrics() {
     const c = current(), m = c.metrics[state.mode] || {};
     const period = state.mode === 'U' ? 'registo completo' : 'período de teste';
     const rows = [];
-    if (m.tft) rows.push(`<tr><td><span class="key" style="background:var(--tft)"></span>TFT ${MODES[state.mode].toLowerCase()}</td>
+    if (m.tft) rows.push(`<tr><td>${key('line', '--tft')}TFT ${MODES[state.mode].toLowerCase()}</td>
         <td>${num(m.tft.nse)}</td><td>${num(m.tft.kge)}</td><td>${num(m.tft.crps)}</td></tr>`);
-    if (m.hbv) rows.push(`<tr><td><span class="key" style="background:var(--hbv)"></span>HBV calibrado na bacia</td>
+    if (m.hbv) rows.push(`<tr><td>${key('dash', '--hbv')}HBV calibrado na bacia</td>
         <td>${num(m.hbv.nse)}</td><td>${num(m.hbv.kge)}</td><td>${num(m.hbv.crps)}</td></tr>`);
     if (!m.tft) rows.unshift(`<tr><td colspan="4">O artigo não tem previsões do TFT para esta bacia neste modo.</td></tr>`);
     $('metrics').innerHTML = `<thead><tr><th>Modelo (${period}, antecedência 3 dias)</th><th>NSE</th><th>KGE</th><th>CRPS</th></tr></thead><tbody>${rows.join('')}</tbody>`;
   }
 
   function renderLegend() {
-    const items = [['--obs', 'Observado'], ['--tft', 'TFT: mediana e intervalo 10–90 %']];
-    if (state.hbv) items.push(['--hbv', 'HBV']);
-    $('legend').innerHTML = items.map(([tok, t]) => `<span><span class="key" style="background:var(${tok})"></span>${t}</span>`).join('');
+    const items = [['line', '--obs', 'Observado'], ['line', '--tft', 'TFT: mediana'], ['band', '--tft-band', 'TFT: intervalo 10–90 %']];
+    if (state.hbv) items.push(['dash', '--hbv', 'HBV']);
+    $('legend').innerHTML = items.map(([kind, tok, t]) => `<span>${key(kind, tok)}${t}</span>`).join('');
     $('split-legend').innerHTML = Object.values(SPLIT).map(([t, tok]) =>
       `<span><span class="swatch" style="background:var(${tok})"></span> ${t}</span>`).join('');
   }
@@ -500,7 +579,127 @@ a { color: var(--tft); }
     }
   }
 
+  // ---------------------------------------------------------------- metric map
+  const COMBOS = [['U', 'tft'], ['U', 'hbv'], ['S', 'tft'], ['S', 'hbv']];
+  const PERIOD = { U: 'registo completo', S: 'período de teste' };
+  const sourceName = (mode, model) => `${model === 'tft' ? `TFT ${MODES[mode].toLowerCase()}` : 'HBV calibrado na bacia'} (${PERIOD[mode]})`;
+
+  function valueOf(c, mode, model, metric) {
+    const r = ((c.metrics || {})[mode] || {})[model];
+    const v = r ? r[metric] : null;
+    return v == null || !isFinite(v) ? null : v;
+  }
+
+  function median(values) {
+    const v = [...values].sort((a, b) => a - b), n = v.length;
+    return n ? (n % 2 ? v[(n - 1) / 2] : (v[n / 2 - 1] + v[n / 2]) / 2) : null;
+  }
+
+  const decimals = (b) => Math.min(3, (String(b).split('.')[1] || '').length);
+
+  // Class breaks, colours and labels of a metric, shared by every mode and model.
+  function classes(metric) {
+    const def = METRICS[metric];
+    let breaks = def.fixed;
+    if (!breaks) {
+      const all = [];
+      for (const c of state.meta.catchments) for (const [mode, model] of COMBOS) {
+        const v = valueOf(c, mode, model, metric);
+        if (v != null) all.push(v);
+      }
+      all.sort((a, b) => a - b);
+      breaks = [...new Set([1, 2, 3, 4, 5, 6].map((k) => Number(all[Math.round(k / 7 * (all.length - 1))].toPrecision(2))))];
+    }
+    const pick = (k) => Array.from({ length: k }, (_, i) => RAMP[k === 1 ? 6 : Math.round(i * 6 / (k - 1))]);
+    let colors;
+    if (def.better === 'zero') colors = DIVERGING;
+    else {
+      colors = def.fixed ? ['var(--below)', ...pick(breaks.length)] : pick(breaks.length + 1);
+      if (def.better === 'low') colors.reverse();
+    }
+    const d = Math.max(...breaks.map(decimals)), f = (b) => (b === 0 ? '0' : num(b, d));
+    const labels = [`< ${f(breaks[0])}`, ...breaks.slice(1).map((b, i) => (breaks[i] < 0 ? `${f(breaks[i])} a ${f(b)}` : `${f(breaks[i])}–${f(b)}`)), `≥ ${f(breaks[breaks.length - 1])}`];
+    return { breaks, colors, labels, digits: d + 1 };
+  }
+
+  const classOf = (v, breaks) => breaks.filter((b) => v >= b).length;
+
+  function renderMetricControls() {
+    const def = METRICS[state.metric];
+    if (def.tftOnly) state.model = 'tft';
+    document.querySelectorAll('[data-mmode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mmode === state.mmode)));
+    document.querySelectorAll('[data-model]').forEach((b) => {
+      const off = b.dataset.model === 'hbv' && def.tftOnly;
+      b.disabled = off;
+      b.title = off ? 'Métrica não calculada para o HBV' : '';
+      b.setAttribute('aria-pressed', String(b.dataset.model === state.model));
+    });
+    $('metric-select').value = state.metric;
+  }
+
+  function drawMetricMap() {
+    const { mmode: mode, model, metric } = state, def = METRICS[metric], cls = classes(metric);
+    const val = (c) => valueOf(c, mode, model, metric);
+    const counts = cls.colors.map(() => 0);
+    let missing = 0;
+    for (const c of state.meta.catchments) {
+      const v = val(c);
+      if (v == null) missing++; else counts[classOf(v, cls.breaks)]++;
+    }
+    drawBasins($('mmap'), (c) => { const v = val(c); return v == null ? 'var(--excluded)' : cls.colors[classOf(v, cls.breaks)]; },
+      (c) => `<b>${c.name}</b><br>${c.code} · agrupamento ${c.cluster}<br>${def.label}: ${num(val(c), cls.digits)}`,
+      openHydrograph);
+    $('metric-title').textContent = `${def.label} · ${sourceName(mode, model)}`;
+    $('metric-desc').textContent = def.desc;
+    const hint = { high: 'mais escuro = melhor', low: 'mais escuro = melhor (erro menor)',
+      zero: 'vermelho = subestima · cinzento = sem viés · azul = sobrestima' }[def.better];
+    $('bins-title').textContent = `Classes (n.º de bacias por baixo): ${hint}${def.fixed && def.better === 'high' ? ' · cinzento = abaixo de 0' : ''}`;
+    const bins = cls.colors.map((col, i) => [col, cls.labels[i], counts[i]]);
+    if (missing) bins.push(['var(--excluded)', 'sem valor', missing]);
+    $('bins').innerHTML = bins.map(([col, t, n]) => `<span style="background:${col}" title="${t}: ${n} bacias"></span>`).join('');
+    $('bin-labels').innerHTML = bins.map(([, t, n]) => `<span>${t}<br>${n}</span>`).join('');
+    const rows = COMBOS.map(([m, mo]) => {
+      const vals = state.meta.catchments.map((c) => valueOf(c, m, mo, metric)).filter((v) => v != null);
+      const current = m === mode && mo === model ? ' class="current"' : '';
+      return `<tr${current}><td>${sourceName(m, mo)}</td><td>${vals.length ? num(median(vals), cls.digits) : '–'}</td><td>${vals.length}</td></tr>`;
+    });
+    $('metric-summary').innerHTML = `<thead><tr><th>${def.label}</th><th>Mediana</th><th>Bacias</th></tr></thead><tbody>${rows.join('')}</tbody>`;
+  }
+
+  function openHydrograph(code) {
+    state.mode = state.mmode;
+    showTab('hydro');
+    select(code);
+  }
+
+  function showTab(name) {
+    state.tab = name;
+    for (const id of ['hydro', 'metric']) {
+      const on = id === name, tab = $(`tab-${id}`);
+      tab.setAttribute('aria-selected', String(on));
+      tab.tabIndex = on ? 0 : -1;
+      $(`view-${id}`).hidden = !on;
+    }
+    hideTip();
+    if (name === 'metric') { renderMetricControls(); drawMetricMap(); }
+    try { history.replaceState(null, '', name === 'metric' ? '#metricas' : location.pathname + location.search); } catch (e) { /* sandboxed */ }
+  }
+
   function bind() {
+    $('tab-hydro').addEventListener('click', () => showTab('hydro'));
+    $('tab-metric').addEventListener('click', () => showTab('metric'));
+    document.querySelector('.tabs').addEventListener('keydown', (e) => {
+      if (e.key !== 'ArrowRight' && e.key !== 'ArrowLeft') return;
+      const next = state.tab === 'hydro' ? 'metric' : 'hydro';
+      showTab(next); $(`tab-${next}`).focus();
+    });
+    document.querySelectorAll('[data-mmode]').forEach((b) => b.addEventListener('click', () => {
+      state.mmode = b.dataset.mmode; renderMetricControls(); drawMetricMap();
+    }));
+    document.querySelectorAll('[data-model]').forEach((b) => b.addEventListener('click', () => {
+      state.model = b.dataset.model; renderMetricControls(); drawMetricMap();
+    }));
+    $('metric-select').addEventListener('change', (e) => { state.metric = e.target.value; renderMetricControls(); drawMetricMap(); });
     document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
       state.mode = b.dataset.mode;
       renderControls(); render(true);
@@ -524,7 +723,7 @@ a { color: var(--tft); }
     }).observe($('charts'));
     const rebuild = () => { const s = state.charts.q && state.charts.q.scales.x; const keep = s ? [s.min, s.max] : null;
       drawMap(); document.querySelectorAll('#map .basin').forEach((p) => p.classList.toggle('selected', p.dataset.code === state.code));
-      buildCharts(); render(false); if (keep) zoomTo(keep); };
+      buildCharts(); render(false); if (keep) zoomTo(keep); if (state.tab === 'metric') drawMetricMap(); };
     window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rebuild);
     new MutationObserver(rebuild).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
   }
@@ -538,8 +737,10 @@ a { color: var(--tft); }
       const sel = $('station-select');
       sel.innerHTML = [...meta.catchments].sort((a, b) => a.name.localeCompare(b.name, 'pt'))
         .map((c) => `<option value="${c.code}">${c.name} (${c.code})</option>`).join('');
+      $('metric-select').innerHTML = Object.entries(METRICS).map(([k, d]) => `<option value="${k}">${d.label}</option>`).join('');
       drawMap(); buildCharts(); bind();
       await select(meta.default || meta.catchments[0].code);
+      if (location.hash === '#metricas') showTab('metric');
     } catch (err) {
       $('st-name').textContent = 'Não foi possível carregar a plataforma';
       $('status').textContent = err.message;
