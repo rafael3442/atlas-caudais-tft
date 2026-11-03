@@ -325,7 +325,7 @@ a { color: var(--tft); }
 
   async function loadStation(c) {
     if (!state.cache.has(c.file)) {
-      const res = await fetch(`data/${c.file}.txt`);
+      const res = await fetch(`data/${c.file}.txt?v=a32c24c5b3`);
       if (!res.ok) throw new Error(`Não foi possível obter os dados de ${c.code} (${res.status}).`);
       const bin = atob((await res.text()).trim()), bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -732,7 +732,7 @@ a { color: var(--tft); }
 
   async function start() {
     try {
-      const [meta, map] = await Promise.all([fetch('meta.json').then((r) => r.json()), fetch('map.json').then((r) => r.json())]);
+      const [meta, map] = await Promise.all([fetch('meta.json?v=a32c24c5b3').then((r) => r.json()), fetch('map.json?v=a32c24c5b3').then((r) => r.json())]);
       state.meta = meta; state.map = map;
       const t0 = Date.parse(meta.start + 'T12:00:00Z') / 1000;
       state.x = Array.from({ length: meta.n }, (_, i) => t0 + i * 86400);
