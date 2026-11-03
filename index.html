@@ -1,0 +1,551 @@
+<!doctype html>
+<html lang="pt">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="description" content="Previsões diárias de caudal do Temporal Fusion Transformer nas bacias naturais de Portugal continental (Francisco e Matos, 2026).">
+<title>Atlas de Caudais TFT</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600&display=swap">
+<style>
+/* Layout: map of the catchments on the left (sticky), station detail with synced hydrograph panels on the right; one column on phones. */
+:root {
+  --bg: #f6f8f9; --surface: #ffffff; --ink: #10202b; --muted: #556571; --line: #dbe2e6; --grid: #e9eef1;
+  --land: #edf1f0; --spain: #e2e7e6; --coast: #9aa7ad;
+  --tft: #2a78d6; --tft-band: rgba(42, 120, 214, 0.20); --hbv: #138a62; --obs: #10202b;
+  --precip: #5b86b0; --temp: #d4602a;
+  --split-train: #a7bccb; --split-val: #e3ab3f; --split-test: #cf6f92; --excluded: #c8cfd2;
+  --select: rgba(16, 32, 43, 0.08);
+  --font-display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --font-body: "Source Sans 3", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: "IBM Plex Mono", ui-monospace, "SFMono-Regular", Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #0e1418; --surface: #141c21; --ink: #e6edf1; --muted: #9babb5; --line: #253139; --grid: #1c262d;
+    --land: #1b252b; --spain: #161e23; --coast: #4c5b63;
+    --tft: #4b94ea; --tft-band: rgba(75, 148, 234, 0.26); --hbv: #2fbf8a; --obs: #e6edf1;
+    --precip: #7aa3cc; --temp: #ef8250;
+    --split-train: #5d7383; --split-val: #b98a2c; --split-test: #a8577a; --excluded: #3a454c;
+    --select: rgba(230, 237, 241, 0.10);
+    color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --bg: #0e1418; --surface: #141c21; --ink: #e6edf1; --muted: #9babb5; --line: #253139; --grid: #1c262d;
+  --land: #1b252b; --spain: #161e23; --coast: #4c5b63;
+  --tft: #4b94ea; --tft-band: rgba(75, 148, 234, 0.26); --hbv: #2fbf8a; --obs: #e6edf1;
+  --precip: #7aa3cc; --temp: #ef8250;
+  --split-train: #5d7383; --split-val: #b98a2c; --split-test: #a8577a; --excluded: #3a454c;
+  --select: rgba(230, 237, 241, 0.10);
+  color-scheme: dark;
+}
+* { box-sizing: border-box; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.45;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 20px 28px;
+}
+h1, h2 { font-family: var(--font-display); font-weight: 600; letter-spacing: 0.01em; text-wrap: balance; margin: 0; }
+h1 { font-size: clamp(26px, 3.4vw, 36px); line-height: 1.1; }
+h2 { font-size: 24px; line-height: 1.15; }
+.page { max-width: 1400px; margin: 0 auto; display: grid; gap: 18px; }
+.intro { display: grid; gap: 6px; max-width: 78ch; }
+.intro p { margin: 0; color: var(--muted); }
+.layout { display: grid; grid-template-columns: minmax(260px, 380px) minmax(0, 1fr); gap: 20px; align-items: start; }
+@media (max-width: 900px) { .layout { grid-template-columns: minmax(0, 1fr); } }
+.map-panel { position: sticky; top: calc(env(safe-area-inset-top, 0px) + 12px); display: grid; gap: 10px; }
+@media (max-width: 900px) { .map-panel { position: static; max-width: 420px; width: 100%; justify-self: center; } }
+#map { width: 100%; height: auto; display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+#map .land { fill: var(--land); stroke: var(--coast); stroke-width: 0.8; }
+#map .spain { fill: var(--spain); stroke: none; }
+#map .basin { stroke: var(--surface); stroke-width: 0.6; cursor: pointer; transition: opacity 120ms; }
+#map .basin:hover, #map .basin:focus-visible { stroke: var(--ink); stroke-width: 1.4; outline: none; }
+#map .basin.selected { stroke: var(--ink); stroke-width: 2.2; }
+.map-legend { display: grid; gap: 6px; font-size: 13px; color: var(--muted); }
+.ramp { display: grid; grid-template-columns: repeat(7, 1fr); gap: 2px; }
+.ramp span { height: 10px; border-radius: 2px; }
+.ramp-labels { display: flex; justify-content: space-between; font-family: var(--font-data); font-size: 11px; }
+.swatch-row { display: flex; align-items: center; gap: 8px; }
+.swatch { width: 18px; height: 10px; border-radius: 2px; display: inline-block; flex: none; }
+.station-pick { display: grid; gap: 4px; font-size: 13px; color: var(--muted); }
+select, button { font: inherit; color: var(--ink); }
+select { background: var(--surface); border: 1px solid var(--line); border-radius: 6px; padding: 7px 8px; width: 100%; }
+.detail { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 18px; display: grid; gap: 14px; min-width: 0; }
+.station-head { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 14px; }
+.station-head .code { font-family: var(--font-data); font-size: 14px; color: var(--muted); }
+.chips { display: flex; flex-wrap: wrap; gap: 6px; }
+.chip { font-size: 12.5px; padding: 2px 9px; border-radius: 999px; border: 1px solid var(--line); color: var(--muted); font-variant-numeric: tabular-nums; }
+.chip.warn { border-color: var(--split-val); color: var(--ink); }
+.controls { display: flex; flex-wrap: wrap; gap: 10px 18px; align-items: center; }
+.control { display: grid; gap: 4px; }
+.control-label { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); }
+.segmented { display: inline-flex; border: 1px solid var(--line); border-radius: 7px; overflow: hidden; }
+.segmented button { border: 0; background: transparent; padding: 6px 12px; cursor: pointer; border-right: 1px solid var(--line); }
+.segmented button:last-child { border-right: 0; }
+.segmented button[aria-pressed="true"] { background: var(--ink); color: var(--surface); }
+.segmented button:disabled { color: var(--muted); opacity: 0.5; cursor: not-allowed; }
+.segmented button:focus-visible, .toggle input:focus-visible + span, .zoom button:focus-visible { outline: 2px solid var(--tft); outline-offset: 2px; }
+.toggle { display: inline-flex; align-items: center; gap: 6px; cursor: pointer; user-select: none; }
+.toggle input { accent-color: var(--tft); width: 16px; height: 16px; margin: 0; }
+.zoom { display: inline-flex; gap: 6px; }
+.zoom button { background: transparent; border: 1px solid var(--line); border-radius: 7px; padding: 6px 10px; cursor: pointer; }
+.metrics-wrap { overflow-x: auto; }
+table.metrics { border-collapse: collapse; font-size: 14px; min-width: 420px; }
+table.metrics th, table.metrics td { padding: 5px 12px 5px 0; text-align: right; border-bottom: 1px solid var(--grid); font-variant-numeric: tabular-nums; }
+table.metrics th:first-child, table.metrics td:first-child { text-align: left; }
+table.metrics thead th { font-size: 11.5px; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 600; }
+table.metrics td { font-family: var(--font-data); font-size: 13.5px; }
+table.metrics td:first-child { font-family: var(--font-body); font-size: 14px; }
+.key { display: inline-block; width: 14px; height: 3px; vertical-align: middle; margin-right: 7px; border-radius: 2px; }
+.readout { font-family: var(--font-data); font-size: 12.5px; color: var(--muted); min-height: 1.4em; font-variant-numeric: tabular-nums; }
+.readout b { color: var(--ink); font-weight: 500; }
+.charts { display: grid; gap: 2px; min-width: 0; }
+.panel-label { font-size: 12px; color: var(--muted); margin-left: 64px; }
+.split-legend { display: flex; flex-wrap: wrap; gap: 4px 14px; font-size: 12.5px; color: var(--muted); margin-left: 64px; }
+.legend { display: flex; flex-wrap: wrap; gap: 6px 16px; font-size: 13px; color: var(--muted); }
+.notes { font-size: 13px; color: var(--muted); display: grid; gap: 6px; max-width: 90ch; }
+.notes p { margin: 0; }
+.status { font-size: 13.5px; color: var(--muted); }
+a { color: var(--tft); }
+.tooltip { position: fixed; pointer-events: none; background: var(--surface); color: var(--ink); border: 1px solid var(--line); border-radius: 6px; padding: 6px 9px; font-size: 13px; box-shadow: 0 4px 14px rgba(0,0,0,0.12); z-index: 20; }
+/* uPlot core */
+.uplot, .uplot *, .uplot *::before, .uplot *::after { box-sizing: border-box; }
+.uplot { font-family: var(--font-body); line-height: 1.5; width: min-content; }
+.u-wrap { position: relative; user-select: none; }
+.u-over, .u-under { position: absolute; }
+.u-under { overflow: hidden; }
+.uplot canvas { display: block; position: relative; width: 100%; height: 100%; }
+.u-axis { position: absolute; }
+.u-select { background: var(--select); position: absolute; pointer-events: none; }
+.u-cursor-x, .u-cursor-y { position: absolute; left: 0; top: 0; pointer-events: none; will-change: transform; }
+.u-hz .u-cursor-x { height: 100%; border-right: 1px dashed var(--muted); }
+.u-hz .u-cursor-y { width: 100%; border-bottom: 0; }
+.u-cursor-pt { position: absolute; top: 0; left: 0; border-radius: 50%; border: 0 solid; pointer-events: none; will-change: transform; background-clip: padding-box !important; }
+.u-axis.u-off, .u-select.u-off, .u-cursor-x.u-off, .u-cursor-y.u-off, .u-cursor-pt.u-off { display: none; }
+@media (prefers-reduced-motion: reduce) { #map .basin { transition: none; } }
+</style>
+
+<div class="page">
+  <header class="intro">
+    <h1>Atlas de Caudais TFT</h1>
+    <p>Previsões de caudal diário do Temporal Fusion Transformer nas bacias naturais de Portugal continental (Francisco e Matos, 2026), com antecedência de 3 dias. Escolha uma bacia no mapa para ver a precipitação, a temperatura e o caudal observado e previsto.</p>
+  </header>
+
+  <div class="layout">
+    <aside class="map-panel" aria-label="Mapa das bacias">
+      <svg id="map" role="group" aria-label="Bacias hidrográficas estudadas"></svg>
+      <div class="map-legend">
+        <div>NSE do TFT em bacia não monitorizada (modelo selecionado no artigo)</div>
+        <div class="ramp" id="ramp"></div>
+        <div class="ramp-labels" id="ramp-labels"></div>
+        <div class="swatch-row"><span class="swatch" style="background: repeating-linear-gradient(45deg, var(--excluded) 0 3px, var(--land) 3px 6px)"></span>Excluída dos resultados do artigo</div>
+      </div>
+      <label class="station-pick" for="station-select">Ou escolha da lista
+        <select id="station-select"></select>
+      </label>
+    </aside>
+
+    <section class="detail" aria-live="polite">
+      <div class="station-head">
+        <h2 id="st-name">A carregar…</h2>
+        <span class="code" id="st-code"></span>
+      </div>
+      <div class="chips" id="st-chips"></div>
+
+      <div class="controls">
+        <div class="control">
+          <span class="control-label" id="lbl-mode">Modo</span>
+          <div class="segmented" role="group" aria-labelledby="lbl-mode">
+            <button type="button" id="mode-U" data-mode="U" aria-pressed="true">Não monitorizado</button>
+            <button type="button" id="mode-S" data-mode="S" aria-pressed="false">Especializado</button>
+          </div>
+        </div>
+        <div class="control">
+          <span class="control-label">Mostrar</span>
+          <div class="controls" style="gap: 14px">
+            <label class="toggle" for="opt-hbv"><input type="checkbox" id="opt-hbv" checked><span>HBV</span></label>
+            <label class="toggle" for="opt-log"><input type="checkbox" id="opt-log"><span>Escala log.</span></label>
+          </div>
+        </div>
+        <div class="control">
+          <span class="control-label">Período</span>
+          <div class="zoom">
+            <button type="button" id="zoom-all">Registo completo</button>
+            <button type="button" id="zoom-year">Um ano hidrológico</button>
+          </div>
+        </div>
+      </div>
+
+      <div class="metrics-wrap"><table class="metrics" id="metrics"></table></div>
+
+      <div class="readout" id="readout">Passe o cursor sobre os gráficos para ler os valores; arraste para ampliar.</div>
+      <div class="charts" id="charts">
+        <div id="split-wrap" hidden>
+          <div class="split-legend" id="split-legend"></div>
+          <div id="chart-split"></div>
+        </div>
+        <div class="panel-label">Precipitação (mm/dia)</div>
+        <div id="chart-p"></div>
+        <div class="panel-label">Temperatura média (°C)</div>
+        <div id="chart-t"></div>
+        <div class="panel-label">Caudal específico (L s⁻¹ km⁻²)</div>
+        <div id="chart-q"></div>
+      </div>
+      <div class="legend" id="legend"></div>
+      <div class="status" id="status"></div>
+
+      <div class="notes">
+        <p><b>Não monitorizado:</b> a bacia nunca foi vista no treino (validação cruzada por grupos, 14 configurações × 10 repetições). <b>Especializado:</b> o modelo regional voltou a ser treinado com 60 % da série da bacia; a faixa acima dos gráficos mostra os períodos de treino, validação e teste.</p>
+        <p>Em cada modo mostra-se o TFT selecionado no artigo: em <b>não monitorizado</b>, a repetição com maior NSE nas bacias de validação espacial; em <b>especializado</b>, a versão com maior NSE no período de validação. A linha azul é a mediana e a banda o intervalo de 10–90 %.</p>
+        <p>O HBV foi calibrado em cada bacia com todos os dados locais: é uma referência exigente, não um modelo não monitorizado. Métricas: NSE e KGE sobre a média da distribuição prevista; CRPS em L s⁻¹ km⁻² (para o HBV, igual ao erro absoluto médio). Dados e resultados: <a href="https://github.com/FORESIGHT-ULisboa/streamflow-portugal-ungauged" target="_blank" rel="noopener">FORESIGHT-ULisboa/streamflow-portugal-ungauged</a>.</p>
+      </div>
+    </section>
+  </div>
+</div>
+<div class="tooltip" id="tooltip" hidden></div>
+
+<script src="https://cdn.jsdelivr.net/npm/uplot@1.6.30/dist/uPlot.iife.min.js"></script>
+<script>
+(() => {
+  const RAMP = ['#cde2fb', '#9ec5f4', '#6da7ec', '#3987e5', '#256abf', '#184f95', '#0d366b'];
+  const RAMP_BOUNDS = [0, 0.1, 0.2, 0.3, 0.4, 0.5, 0.6, 0.8];
+  const MODES = { U: 'Não monitorizado', S: 'Especializado' };
+  const SPLIT = { 1: ['Treino', '--split-train'], 2: ['Validação', '--split-val'], 3: ['Teste', '--split-test'] };
+  const MISSING = 65535;
+  const num = (v, d = 2) => v == null || !isFinite(v) ? '–' :
+    v.toLocaleString('pt-PT', { minimumFractionDigits: d, maximumFractionDigits: d });
+  const $ = (id) => document.getElementById(id);
+  const css = (name) => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+  const ptNames = {
+    MMMM: ['janeiro', 'fevereiro', 'março', 'abril', 'maio', 'junho', 'julho', 'agosto', 'setembro', 'outubro', 'novembro', 'dezembro'],
+    MMM: ['jan', 'fev', 'mar', 'abr', 'mai', 'jun', 'jul', 'ago', 'set', 'out', 'nov', 'dez'],
+    WWWW: ['domingo', 'segunda', 'terça', 'quarta', 'quinta', 'sexta', 'sábado'],
+    WWW: ['dom', 'seg', 'ter', 'qua', 'qui', 'sex', 'sáb'],
+  };
+  const fmtDate = (tpl) => uPlot.fmtDate(tpl, ptNames);
+  const dayLabel = uPlot.fmtDate('{D} {MMM} {YYYY}', ptNames);
+
+  const state = { meta: null, map: null, code: null, mode: 'U', hbv: true, log: false,
+                  cache: new Map(), data: null, charts: {}, syncing: false };
+
+  // ---------------------------------------------------------------- data
+  function decode(buf, meta) {
+    const all = new Uint16Array(buf);
+    const n = meta.n, out = {};
+    meta.series.forEach((name, k) => {
+      const raw = all.subarray(k * n, (k + 1) * n);
+      const kind = meta.encoding[name] || 'q';
+      const arr = new Array(n);
+      for (let i = 0; i < n; i++) {
+        const v = raw[i];
+        if (v === MISSING) { arr[i] = null; continue; }
+        arr[i] = kind === 'q' ? Math.expm1(v / meta.qscale) : kind === 'p' ? v / 10 :
+                 kind === 't' ? v / 100 - 40 : v;
+      }
+      out[name] = arr;
+    });
+    return out;
+  }
+
+  async function loadStation(c) {
+    if (!state.cache.has(c.file)) {
+      const res = await fetch(`data/${c.file}.txt`);
+      if (!res.ok) throw new Error(`Não foi possível obter os dados de ${c.code} (${res.status}).`);
+      const bin = atob((await res.text()).trim()), bytes = new Uint8Array(bin.length);
+      for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
+      const raw = await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('deflate'))).arrayBuffer();
+      state.cache.set(c.file, decode(raw, state.meta));
+    }
+    return state.cache.get(c.file);
+  }
+
+  // ---------------------------------------------------------------- map
+  function rampColor(v) {
+    if (v == null) return css('--excluded');
+    for (let i = RAMP.length - 1; i >= 0; i--) if (v >= RAMP_BOUNDS[i]) return RAMP[i];
+    return RAMP[0];
+  }
+
+  function drawMap() {
+    const svg = $('map'), m = state.map, NS = 'http://www.w3.org/2000/svg';
+    svg.setAttribute('viewBox', m.viewBox.join(' '));
+    svg.innerHTML = `<defs><pattern id="hatch" patternUnits="userSpaceOnUse" width="5" height="5" patternTransform="rotate(45)">
+      <rect width="5" height="5" fill="var(--land)"></rect><rect width="2.2" height="5" fill="var(--excluded)"></rect></pattern></defs>`;
+    const add = (d, cls) => { const p = document.createElementNS(NS, 'path'); p.setAttribute('d', d); p.setAttribute('class', cls); svg.appendChild(p); return p; };
+    add(m.spain, 'spain');
+    add(m.portugal, 'land');
+    const byCode = new Map(state.meta.catchments.map((c) => [c.code, c]));
+    for (const shape of m.catchments) {
+      const c = byCode.get(shape.code);
+      if (!c) continue;
+      const p = add(shape.d, 'basin');
+      p.dataset.code = c.code;
+      p.setAttribute('fill', c.excluded ? 'url(#hatch)' : rampColor(c.map_nse));
+      p.setAttribute('tabindex', '0');
+      p.setAttribute('role', 'button');
+      p.setAttribute('aria-label', `${c.name} (${c.code})`);
+      p.addEventListener('click', () => select(c.code));
+      p.addEventListener('keydown', (e) => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); select(c.code); } });
+      p.addEventListener('mousemove', (e) => showTip(e, c));
+      p.addEventListener('mouseleave', hideTip);
+    }
+    const ramp = $('ramp');
+    ramp.innerHTML = RAMP.map((col) => `<span style="background:${col}"></span>`).join('');
+    $('ramp-labels').innerHTML = RAMP_BOUNDS.map((b) => `<span>${num(b, 1)}</span>`).join('');
+  }
+
+  function showTip(e, c) {
+    const t = $('tooltip');
+    t.innerHTML = `<b>${c.name}</b><br>${c.code} · agrupamento ${c.cluster}<br>NSE (não monitorizado): ${num(c.map_nse)}${c.excluded ? '<br>excluída dos resultados' : ''}`;
+    t.hidden = false;
+    const x = Math.min(e.clientX + 14, window.innerWidth - t.offsetWidth - 8);
+    t.style.left = `${x}px`; t.style.top = `${e.clientY + 14}px`;
+  }
+  function hideTip() { $('tooltip').hidden = true; }
+
+  // ---------------------------------------------------------------- charts
+  const AXIS_W = 64;
+  function axis(show, label) {
+    return { show: true, size: show ? 34 : 0, values: show ? undefined : () => [],
+             stroke: css('--muted'), grid: { stroke: css('--grid'), width: 1 }, ticks: { show: show, stroke: css('--grid') },
+             font: '12px "Source Sans 3", system-ui, sans-serif', label: label };
+  }
+  function yAxis(fmt) {
+    return { size: AXIS_W, stroke: css('--muted'), grid: { stroke: css('--grid'), width: 1 },
+             ticks: { stroke: css('--grid') }, font: '12px "IBM Plex Mono", ui-monospace, monospace',
+             values: (u, vals) => vals.map(fmt) };
+  }
+  const fmtAxis = (v) => v == null ? '' : Math.abs(v) >= 100 ? Math.round(v).toLocaleString('pt-PT') :
+    v.toLocaleString('pt-PT', { maximumFractionDigits: Math.abs(v) < 1 ? 2 : 1 });
+
+  function width() { return Math.max(280, $('charts').clientWidth); }
+
+  function syncHook(name) {
+    return [(u, key) => {
+      if (key !== 'x' || state.syncing) return;
+      state.syncing = true;
+      for (const [k, other] of Object.entries(state.charts)) {
+        if (k !== name && other) other.setScale('x', { min: u.scales.x.min, max: u.scales.x.max });
+      }
+      state.syncing = false;
+    }];
+  }
+
+  function baseOpts(name, height, bottomAxis) {
+    return {
+      width: width(), height, fmtDate, legend: { show: false },
+      cursor: { sync: { key: 'hydro', setSeries: false }, drag: { x: true, y: false }, points: { show: false } },
+      scales: { x: { time: true } },
+      hooks: { setScale: syncHook(name), setCursor: [readout] },
+      padding: [6, 12, bottomAxis ? 0 : 8, 0],
+      axes: [axis(bottomAxis), yAxis(fmtAxis)],
+    };
+  }
+
+  function buildCharts() {
+    for (const c of Object.values(state.charts)) c && c.destroy();
+    for (const id of ['chart-split', 'chart-p', 'chart-t', 'chart-q']) $(id).innerHTML = '';
+    const x = state.x;
+    const split = baseOpts('split', 26, false);
+    split.axes = [axis(false), { size: AXIS_W, values: () => [], grid: { show: false }, ticks: { show: false } }];
+    split.scales.y = { range: [0, 1] };
+    split.series = [{}, { stroke: 'transparent', points: { show: false } }];
+    split.hooks.draw = [drawSplit];
+    state.charts.split = new uPlot(split, [x, new Array(x.length).fill(null)], $('chart-split'));
+
+    const p = baseOpts('p', 110, false);
+    p.series = [{}, { label: 'P', fill: css('--precip'), stroke: css('--precip'), width: 0,
+                      paths: uPlot.paths.bars({ size: [1, Infinity], gap: 0 }), points: { show: false } }];
+    p.scales.y = { range: (u, mn, mx) => [0, Math.max(5, mx * 1.05)] };
+    state.charts.p = new uPlot(p, [x, []], $('chart-p'));
+
+    const t = baseOpts('t', 90, false);
+    t.series = [{}, { label: 'T', stroke: css('--temp'), width: 1.2, points: { show: false } }];
+    state.charts.t = new uPlot(t, [x, []], $('chart-t'));
+
+    const q = baseOpts('q', 300, true);
+    q.scales.y = state.log ? { distr: 3, log: 10 } : { range: (u, mn, mx) => [0, Math.max(1, mx * 1.05)] };
+    q.series = [{},
+      { label: 'p10', stroke: 'transparent', points: { show: false } },
+      { label: 'Mediana TFT', stroke: css('--tft'), width: 1.6, points: { show: false } },
+      { label: 'p90', stroke: 'transparent', points: { show: false } },
+      { label: 'Observado', stroke: css('--obs'), width: 1.3, points: { show: false } },
+      { label: 'HBV', stroke: css('--hbv'), width: 1.3, dash: [5, 3], points: { show: false }, show: state.hbv },
+    ];
+    q.bands = [{ series: [3, 1], fill: css('--tft-band') }];
+    state.charts.q = new uPlot(q, [x, [], [], [], [], []], $('chart-q'));
+  }
+
+  function drawSplit(u) {
+    if (state.mode !== 'S' || !state.data) return;
+    const codes = state.data.S_split, x = state.x, ctx = u.ctx;
+    const { top, height } = u.bbox;
+    const i0 = Math.max(0, u.valToIdx(u.scales.x.min) - 1), i1 = Math.min(x.length - 1, u.valToIdx(u.scales.x.max) + 1);
+    ctx.save();
+    let start = i0;
+    for (let i = i0 + 1; i <= i1 + 1; i++) {
+      if (i > i1 || codes[i] !== codes[start]) {
+        const code = codes[start];
+        if (code && SPLIT[code]) {
+          const xa = u.valToPos(x[start] - 43200, 'x', true), xb = u.valToPos(x[Math.min(i, x.length - 1)] - 43200, 'x', true);
+          ctx.fillStyle = css(SPLIT[code][1]);
+          ctx.fillRect(xa, top, Math.max(1, xb - xa), height);
+        }
+        start = i;
+      }
+    }
+    ctx.restore();
+  }
+
+  function seriesFor(mode) {
+    const d = state.data;
+    return [d[`${mode}_p10`], d[`${mode}_p50`], d[`${mode}_p90`]];
+  }
+
+  function clampLog(arr) { return state.log ? arr.map((v) => v == null ? null : Math.max(v, 0.01)) : arr; }
+
+  function render(resetZoom) {
+    const d = state.data;
+    if (!d) return;
+    const c = current();
+    const [lo, mid, hi] = seriesFor(state.mode);
+    state.charts.p.setData([state.x, d.P], false);
+    state.charts.t.setData([state.x, d.T], false);
+    state.charts.q.setData([state.x, clampLog(lo), clampLog(mid), clampLog(hi), clampLog(d.Qobs), clampLog(d.HBV)], false);
+    state.charts.q.setSeries(5, { show: state.hbv });
+    $('split-wrap').hidden = state.mode !== 'S';
+    state.charts.split.setData([state.x, new Array(state.x.length).fill(null)], false);
+    if (resetZoom) zoomTo(c.extent[state.mode] || c.extent.all);
+    else { const s = state.charts.q.scales.x; zoomTo([s.min, s.max]); }
+    renderMetrics();
+    renderLegend();
+  }
+
+  function zoomTo([min, max]) {
+    state.syncing = true;
+    for (const ch of Object.values(state.charts)) ch.setScale('x', { min, max });
+    state.syncing = false;
+    autoY();
+  }
+
+  function autoY() { /* uPlot rescales y from the visible window on setScale('x') */ }
+
+  function readout(u) {
+    const i = u.cursor.idx;
+    if (i == null || !state.data) return;
+    const d = state.data, [lo, mid, hi] = seriesFor(state.mode);
+    const parts = [`<b>${dayLabel(new Date(state.x[i] * 1000))}</b>`,
+      `P ${num(d.P[i], 1)} mm`, `T ${num(d.T[i], 1)} °C`, `obs. ${num(d.Qobs[i], 1)}`,
+      `TFT ${num(mid[i], 1)} [${num(lo[i], 1)}–${num(hi[i], 1)}]`];
+    if (state.hbv) parts.push(`HBV ${num(d.HBV[i], 1)}`);
+    if (state.mode === 'S' && SPLIT[d.S_split[i]]) parts.push(SPLIT[d.S_split[i]][0].toLowerCase());
+    $('readout').innerHTML = parts.join(' · ');
+  }
+
+  // ---------------------------------------------------------------- panel
+  function current() { return state.meta.catchments.find((c) => c.code === state.code); }
+
+  function renderHead(c) {
+    $('st-name').textContent = c.name;
+    $('st-code').textContent = c.code;
+    const chips = [`Agrupamento ${c.cluster}`, `${num(c.area, 0)} km²`, `P média ${num(c.precip, 0)} mm/ano`];
+    $('st-chips').innerHTML = chips.map((t) => `<span class="chip">${t}</span>`).join('') +
+      (c.excluded ? '<span class="chip warn">Excluída dos resultados do artigo</span>' : '');
+  }
+
+  function renderMetrics() {
+    const c = current(), m = c.metrics[state.mode] || {};
+    const period = state.mode === 'U' ? 'registo completo' : 'período de teste';
+    const rows = [];
+    if (m.tft) rows.push(`<tr><td><span class="key" style="background:var(--tft)"></span>TFT ${MODES[state.mode].toLowerCase()}</td>
+        <td>${num(m.tft.nse)}</td><td>${num(m.tft.kge)}</td><td>${num(m.tft.crps)}</td></tr>`);
+    if (m.hbv) rows.push(`<tr><td><span class="key" style="background:var(--hbv)"></span>HBV calibrado na bacia</td>
+        <td>${num(m.hbv.nse)}</td><td>${num(m.hbv.kge)}</td><td>${num(m.hbv.crps)}</td></tr>`);
+    if (!m.tft) rows.unshift(`<tr><td colspan="4">O artigo não tem previsões do TFT para esta bacia neste modo.</td></tr>`);
+    $('metrics').innerHTML = `<thead><tr><th>Modelo (${period}, antecedência 3 dias)</th><th>NSE</th><th>KGE</th><th>CRPS</th></tr></thead><tbody>${rows.join('')}</tbody>`;
+  }
+
+  function renderLegend() {
+    const items = [['--obs', 'Observado'], ['--tft', 'TFT: mediana e intervalo 10–90 %']];
+    if (state.hbv) items.push(['--hbv', 'HBV']);
+    $('legend').innerHTML = items.map(([tok, t]) => `<span><span class="key" style="background:var(${tok})"></span>${t}</span>`).join('');
+    $('split-legend').innerHTML = Object.values(SPLIT).map(([t, tok]) =>
+      `<span><span class="swatch" style="background:var(${tok})"></span> ${t}</span>`).join('');
+  }
+
+  function renderControls() {
+    const c = current();
+    document.querySelectorAll('[data-mode]').forEach((b) => {
+      b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode));
+      b.disabled = !c.available[b.dataset.mode];
+    });
+  }
+
+  async function select(code) {
+    state.code = code;
+    const c = current();
+    document.querySelectorAll('#map .basin').forEach((p) => p.classList.toggle('selected', p.dataset.code === code));
+    $('station-select').value = code;
+    if (!c.available[state.mode]) state.mode = c.available.S && !c.available.U ? 'S' : 'U';
+    renderHead(c);
+    renderControls();
+    $('status').textContent = 'A carregar os dados da bacia…';
+    try {
+      state.data = await loadStation(c);
+      $('status').textContent = '';
+      render(true);
+    } catch (err) {
+      $('status').textContent = err.message;
+    }
+  }
+
+  function bind() {
+    document.querySelectorAll('[data-mode]').forEach((b) => b.addEventListener('click', () => {
+      state.mode = b.dataset.mode;
+      renderControls(); render(true);
+    }));
+    $('opt-hbv').addEventListener('change', (e) => { state.hbv = e.target.checked; render(false); });
+    $('opt-log').addEventListener('change', (e) => {
+      state.log = e.target.checked;
+      const s = state.charts.q.scales.x, keep = [s.min, s.max];
+      buildCharts(); render(false); zoomTo(keep);
+    });
+    $('zoom-all').addEventListener('click', () => zoomTo(current().extent[state.mode] || current().extent.all));
+    $('zoom-year').addEventListener('click', () => {
+      const [a, b] = current().extent[state.mode] || current().extent.all;
+      const end = new Date(b * 1000), y = end.getUTCMonth() >= 9 ? end.getUTCFullYear() : end.getUTCFullYear() - 1;
+      const start = Date.UTC(y - 1, 9, 1) / 1000;
+      zoomTo([Math.max(a, start), Math.max(a, start) + 365 * 86400]);
+    });
+    $('station-select').addEventListener('change', (e) => select(e.target.value));
+    new ResizeObserver(() => {
+      for (const [k, ch] of Object.entries(state.charts)) ch.setSize({ width: width(), height: ch.height });
+    }).observe($('charts'));
+    const rebuild = () => { const s = state.charts.q && state.charts.q.scales.x; const keep = s ? [s.min, s.max] : null;
+      drawMap(); document.querySelectorAll('#map .basin').forEach((p) => p.classList.toggle('selected', p.dataset.code === state.code));
+      buildCharts(); render(false); if (keep) zoomTo(keep); };
+    window.matchMedia('(prefers-color-scheme: dark)').addEventListener('change', rebuild);
+    new MutationObserver(rebuild).observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+  }
+
+  async function start() {
+    try {
+      const [meta, map] = await Promise.all([fetch('meta.json').then((r) => r.json()), fetch('map.json').then((r) => r.json())]);
+      state.meta = meta; state.map = map;
+      const t0 = Date.parse(meta.start + 'T12:00:00Z') / 1000;
+      state.x = Array.from({ length: meta.n }, (_, i) => t0 + i * 86400);
+      const sel = $('station-select');
+      sel.innerHTML = [...meta.catchments].sort((a, b) => a.name.localeCompare(b.name, 'pt'))
+        .map((c) => `<option value="${c.code}">${c.name} (${c.code})</option>`).join('');
+      drawMap(); buildCharts(); bind();
+      await select(meta.default || meta.catchments[0].code);
+    } catch (err) {
+      $('st-name').textContent = 'Não foi possível carregar a plataforma';
+      $('status').textContent = err.message;
+    }
+  }
+  start();
+})();
+</script>
+</html>
