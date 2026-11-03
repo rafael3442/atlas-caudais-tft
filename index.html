@@ -3,7 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="description" content="Previsões diárias de caudal do Temporal Fusion Transformer nas bacias naturais de Portugal continental (Francisco e Matos, 2026).">
+<meta name="description" content="Simulações diárias de caudal do Temporal Fusion Transformer nas bacias naturais de Portugal continental.">
 <title>Atlas de Caudais TFT</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600&family=IBM+Plex+Mono:wght@400;500&family=Source+Sans+3:wght@400;600&display=swap">
@@ -12,7 +12,7 @@
 :root {
   --bg: #f6f8f9; --surface: #ffffff; --ink: #10202b; --muted: #556571; --line: #dbe2e6; --grid: #e9eef1;
   --land: #edf1f0; --spain: #e2e7e6; --coast: #9aa7ad;
-  --tft: #2a78d6; --tft-band: rgba(42, 120, 214, 0.20); --hbv: #138a62; --obs: #10202b;
+  --tft: #2a78d6; --tft-band: rgba(42, 120, 214, 0.20); --hbv: #138a62; --lstm: #e0662f; --obs: #10202b;
   --precip: #5b86b0; --temp: #d4602a;
   --split-train: #a7bccb; --split-val: #e3ab3f; --split-test: #cf6f92; --excluded: #c8cfd2;
   --cl-a: #fdbf6f; --cl-b: #b2df8a; --cl-c: #a6cee3; --cl-d: #f38f8e; --below: #b9b8b2; --div-mid: #e4e3df;
@@ -26,7 +26,7 @@
   :root:not([data-theme="light"]) {
     --bg: #0e1418; --surface: #141c21; --ink: #e6edf1; --muted: #9babb5; --line: #253139; --grid: #1c262d;
     --land: #1b252b; --spain: #161e23; --coast: #4c5b63;
-    --tft: #4b94ea; --tft-band: rgba(75, 148, 234, 0.26); --hbv: #2fbf8a; --obs: #e6edf1;
+    --tft: #4b94ea; --tft-band: rgba(75, 148, 234, 0.26); --hbv: #2fbf8a; --lstm: #f08a52; --obs: #e6edf1;
     --precip: #7aa3cc; --temp: #ef8250;
     --split-train: #5d7383; --split-val: #b98a2c; --split-test: #a8577a; --excluded: #3a454c;
     --below: #5b6166; --div-mid: #383835;
@@ -37,7 +37,7 @@
 :root[data-theme="dark"] {
   --bg: #0e1418; --surface: #141c21; --ink: #e6edf1; --muted: #9babb5; --line: #253139; --grid: #1c262d;
   --land: #1b252b; --spain: #161e23; --coast: #4c5b63;
-  --tft: #4b94ea; --tft-band: rgba(75, 148, 234, 0.26); --hbv: #2fbf8a; --obs: #e6edf1;
+  --tft: #4b94ea; --tft-band: rgba(75, 148, 234, 0.26); --hbv: #2fbf8a; --lstm: #f08a52; --obs: #e6edf1;
   --precip: #7aa3cc; --temp: #ef8250;
   --split-train: #5d7383; --split-val: #b98a2c; --split-test: #a8577a; --excluded: #3a454c;
     --below: #5b6166; --div-mid: #383835;
@@ -145,7 +145,7 @@ a { color: var(--tft); }
 <div class="page">
   <header class="intro">
     <h1>Atlas de Caudais TFT</h1>
-    <p>Previsões de caudal diário do Temporal Fusion Transformer nas bacias naturais de Portugal continental (Francisco e Matos, 2026), com antecedência de 3 dias. Escolha uma bacia no mapa para ver a precipitação, a temperatura e o caudal observado e previsto.</p>
+    <p>Simulações de caudal diário do Temporal Fusion Transformer nas bacias naturais de Portugal continental. Escolha uma bacia no mapa para ver a precipitação, a temperatura e o caudal observado e simulado.</p>
   </header>
 
   <div class="tabs" role="tablist" aria-label="Vistas">
@@ -184,6 +184,7 @@ a { color: var(--tft); }
           <span class="control-label">Mostrar</span>
           <div class="controls" style="gap: 14px">
             <label class="toggle" for="opt-hbv"><input type="checkbox" id="opt-hbv" checked><span>HBV</span></label>
+            <label class="toggle" for="opt-lstm" id="lbl-lstm"><input type="checkbox" id="opt-lstm" checked><span>LSTM</span></label>
             <label class="toggle" for="opt-log"><input type="checkbox" id="opt-log"><span>Escala log.</span></label>
           </div>
         </div>
@@ -216,7 +217,7 @@ a { color: var(--tft); }
 
       <div class="notes">
         <p><b>Não monitorizado:</b> a bacia nunca foi vista no treino (validação cruzada por grupos, 14 configurações × 10 repetições). <b>Especializado:</b> o modelo regional voltou a ser treinado com 60 % da série da bacia; a faixa acima dos gráficos mostra os períodos de treino, validação e teste.</p>
-        <p>Em cada modo mostra-se o TFT selecionado no artigo: em <b>não monitorizado</b>, a repetição com maior NSE nas bacias de validação espacial; em <b>especializado</b>, a versão com maior NSE no período de validação. A linha azul é a mediana e a banda o intervalo de 10–90 %.</p>
+        <p>Em cada modo mostra-se o TFT selecionado no artigo: em <b>não monitorizado</b>, a repetição com maior NSE nas bacias de validação espacial; em <b>especializado</b>, a versão com maior NSE no período de validação. A linha azul é a mediana e a banda o intervalo de 10–90 %. O <b>LSTM</b> é a referência de aprendizagem profunda do artigo, só avaliada em não monitorizado, selecionada com a mesma regra; mostra-se a sua mediana.</p>
         <p>O HBV foi calibrado em cada bacia com todos os dados locais: é uma referência exigente, não um modelo não monitorizado. Métricas: NSE e KGE sobre a média da distribuição prevista; CRPS em L s⁻¹ km⁻² (para o HBV, igual ao erro absoluto médio). Dados e resultados: <a href="https://github.com/FORESIGHT-ULisboa/streamflow-portugal-ungauged" target="_blank" rel="noopener">FORESIGHT-ULisboa/streamflow-portugal-ungauged</a>.</p>
       </div>
     </section>
@@ -238,6 +239,7 @@ a { color: var(--tft); }
           <span class="control-label" id="lbl-model">Modelo</span>
           <div class="segmented" role="group" aria-labelledby="lbl-model">
             <button type="button" data-model="tft" aria-pressed="true">TFT</button>
+            <button type="button" data-model="lstm" aria-pressed="false">LSTM</button>
             <button type="button" data-model="hbv" aria-pressed="false">HBV</button>
           </div>
         </div>
@@ -253,7 +255,7 @@ a { color: var(--tft); }
       </div>
       <div class="metrics-wrap"><table class="metrics" id="metric-summary"></table></div>
       <div class="notes">
-        <p>Valores publicados no artigo, à antecedência de 3 dias: em <b>não monitorizado</b>, no registo completo de cada bacia; em <b>especializado</b>, no período de teste. O HBV foi calibrado em cada bacia com todos os dados locais. As classes são as mesmas para os dois modos e os dois modelos, para os mapas serem comparáveis.</p>
+        <p>Valores publicados no artigo, à antecedência de 3 dias: em <b>não monitorizado</b>, no registo completo de cada bacia; em <b>especializado</b>, no período de teste. O HBV foi calibrado em cada bacia com todos os dados locais; o LSTM só foi avaliado em não monitorizado. As classes são as mesmas para todos os modos e modelos, para os mapas serem comparáveis.</p>
         <p>Clique numa bacia para abrir o hidrograma.</p>
       </div>
     </section>
@@ -269,21 +271,21 @@ a { color: var(--tft); }
   // better: which end is good; fixed: class breaks shared by every map, else pooled sextiles
   const METRICS = {
     nse: { label: 'NSE', better: 'high', fixed: [0, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8],
-      desc: 'Eficiência de Nash–Sutcliffe da média prevista. 1 é perfeito; abaixo de 0, a previsão é pior do que a média observada.' },
+      desc: 'Eficiência de Nash–Sutcliffe da média prevista. 1 é perfeito; abaixo de 0, a simulação é pior do que a média observada.' },
     kge: { label: 'KGE', better: 'high', fixed: [0, 0.2, 0.4, 0.5, 0.6, 0.7, 0.8],
       desc: 'Eficiência de Kling–Gupta: combina correlação, variabilidade e viés. 1 é perfeito.' },
     crps: { label: 'CRPS (L s⁻¹ km⁻²)', better: 'low',
       desc: 'Erro da distribuição prevista. 0 é perfeito. Para o HBV, que dá um só valor, é igual ao MAE.' },
     mae: { label: 'MAE (L s⁻¹ km⁻²)', better: 'low',
       desc: 'Erro absoluto médio da média prevista. 0 é perfeito.' },
-    quantile_loss: { label: 'Quantile loss (L s⁻¹ km⁻²)', better: 'low', tftOnly: true,
-      desc: 'Quantile loss (pinball loss) média sobre os quantis previstos. 0 é perfeito. Só para o TFT.' },
-    relative_bias: { label: 'Viés relativo', better: 'zero', fixed: [-0.3, -0.15, -0.05, 0.05, 0.15, 0.3], tftOnly: true,
-      desc: 'Diferença entre o caudal médio previsto e o observado, relativa ao observado: negativo subestima, positivo sobrestima. Só para o TFT.' },
-    reliability: { label: 'Fiabilidade (α)', better: 'high', tftOnly: true,
-      desc: 'Fiabilidade α do histograma PIT: 1 quando a distribuição prevista está perfeitamente calibrada. Só para o TFT.' },
-    resolution_relative: { label: 'Resolução relativa', better: 'high', tftOnly: true,
-      desc: 'Média temporal da razão entre a média e o desvio padrão da distribuição prevista: valores maiores indicam distribuições mais estreitas. Só para o TFT.' },
+    quantile_loss: { label: 'Quantile loss (L s⁻¹ km⁻²)', better: 'low', noHbv: true,
+      desc: 'Quantile loss (pinball loss) média sobre os quantis previstos. 0 é perfeito. Não calculado para o HBV.' },
+    relative_bias: { label: 'Viés relativo', better: 'zero', fixed: [-0.3, -0.15, -0.05, 0.05, 0.15, 0.3], noHbv: true,
+      desc: 'Diferença entre o caudal médio previsto e o observado, relativa ao observado: negativo subestima, positivo sobrestima. Não calculado para o HBV.' },
+    reliability: { label: 'Fiabilidade (α)', better: 'high', noHbv: true,
+      desc: 'Fiabilidade α do histograma PIT: 1 quando a distribuição prevista está perfeitamente calibrada. Não calculado para o HBV.' },
+    resolution_relative: { label: 'Resolução relativa', better: 'high', noHbv: true,
+      desc: 'Média temporal da razão entre a média e o desvio padrão da distribuição prevista: valores maiores indicam distribuições mais estreitas. Não calculado para o HBV.' },
   };
   const MODES = { U: 'Não monitorizado', S: 'Especializado' };
   const SPLIT = { 1: ['Treino', '--split-train'], 2: ['Validação', '--split-val'], 3: ['Teste', '--split-test'] };
@@ -301,7 +303,7 @@ a { color: var(--tft); }
   const fmtDate = (tpl) => uPlot.fmtDate(tpl, ptNames);
   const dayLabel = uPlot.fmtDate('{D} {MMM} {YYYY}', ptNames);
 
-  const state = { meta: null, map: null, code: null, mode: 'U', hbv: true, log: false, tab: 'hydro', mmode: 'U', model: 'tft', metric: 'nse',
+  const state = { meta: null, map: null, code: null, mode: 'U', hbv: true, lstm: true, log: false, tab: 'hydro', mmode: 'U', model: 'tft', metric: 'nse',
                   cache: new Map(), data: null, charts: {}, syncing: false };
 
   // ---------------------------------------------------------------- data
@@ -325,7 +327,7 @@ a { color: var(--tft); }
 
   async function loadStation(c) {
     if (!state.cache.has(c.file)) {
-      const res = await fetch(`data/${c.file}.txt?v=a32c24c5b3`);
+      const res = await fetch(`data/${c.file}.txt?v=0fcae2390c`);
       if (!res.ok) throw new Error(`Não foi possível obter os dados de ${c.code} (${res.status}).`);
       const bin = atob((await res.text()).trim()), bytes = new Uint8Array(bin.length);
       for (let i = 0; i < bin.length; i++) bytes[i] = bin.charCodeAt(i);
@@ -448,9 +450,10 @@ a { color: var(--tft); }
       { label: 'p90', stroke: 'transparent', points: { show: false } },
       { label: 'Observado', stroke: css('--obs'), width: 1.3, points: { show: false } },
       { label: 'HBV', stroke: css('--hbv'), width: 1.3, dash: [5, 3], points: { show: false }, show: state.hbv },
+      { label: 'LSTM', stroke: css('--lstm'), width: 1.6, dash: [2, 3], points: { show: false }, show: showLstm() },
     ];
     q.bands = [{ series: [3, 1], fill: css('--tft-band') }];
-    state.charts.q = new uPlot(q, [x, [], [], [], [], []], $('chart-q'));
+    state.charts.q = new uPlot(q, [x, [], [], [], [], [], []], $('chart-q'));
   }
 
   function drawSplit(u) {
@@ -488,8 +491,9 @@ a { color: var(--tft); }
     const [lo, mid, hi] = seriesFor(state.mode);
     state.charts.p.setData([state.x, d.P], false);
     state.charts.t.setData([state.x, d.T], false);
-    state.charts.q.setData([state.x, clampLog(lo), clampLog(mid), clampLog(hi), clampLog(d.Qobs), clampLog(d.HBV)], false);
+    state.charts.q.setData([state.x, clampLog(lo), clampLog(mid), clampLog(hi), clampLog(d.Qobs), clampLog(d.HBV), clampLog(d.L_p50)], false);
     state.charts.q.setSeries(5, { show: state.hbv });
+    state.charts.q.setSeries(6, { show: showLstm() });
     $('split-wrap').hidden = state.mode !== 'S';
     state.charts.split.setData([state.x, new Array(state.x.length).fill(null)], false);
     if (resetZoom) zoomTo(c.extent[state.mode] || c.extent.all);
@@ -515,6 +519,7 @@ a { color: var(--tft); }
       `P ${num(d.P[i], 1)} mm`, `T ${num(d.T[i], 1)} °C`, `obs. ${num(d.Qobs[i], 1)}`,
       `TFT ${num(mid[i], 1)} [${num(lo[i], 1)}–${num(hi[i], 1)}]`];
     if (state.hbv) parts.push(`HBV ${num(d.HBV[i], 1)}`);
+    if (showLstm()) parts.push(`LSTM ${num(d.L_p50[i], 1)} [${num(d.L_p10[i], 1)}–${num(d.L_p90[i], 1)}]`);
     if (state.mode === 'S' && SPLIT[d.S_split[i]]) parts.push(SPLIT[d.S_split[i]][0].toLowerCase());
     $('readout').innerHTML = parts.join(' · ');
   }
@@ -532,6 +537,7 @@ a { color: var(--tft); }
   const KEY = {
     line: (tok) => `background:var(${tok})`,
     dash: (tok) => `background:repeating-linear-gradient(90deg, var(${tok}) 0 5px, transparent 5px 8px)`,
+    dot: (tok) => `background:repeating-linear-gradient(90deg, var(${tok}) 0 2px, transparent 2px 5px)`,
     band: (tok) => `background:var(${tok}); height:10px`,
   };
   const key = (kind, tok) => `<span class="key" style="${KEY[kind](tok)}"></span>`;
@@ -542,15 +548,18 @@ a { color: var(--tft); }
     const rows = [];
     if (m.tft) rows.push(`<tr><td>${key('line', '--tft')}TFT ${MODES[state.mode].toLowerCase()}</td>
         <td>${num(m.tft.nse)}</td><td>${num(m.tft.kge)}</td><td>${num(m.tft.crps)}</td></tr>`);
+    if (m.lstm) rows.push(`<tr><td>${key('dot', '--lstm')}LSTM ${MODES[state.mode].toLowerCase()}</td>
+        <td>${num(m.lstm.nse)}</td><td>${num(m.lstm.kge)}</td><td>${num(m.lstm.crps)}</td></tr>`);
     if (m.hbv) rows.push(`<tr><td>${key('dash', '--hbv')}HBV calibrado na bacia</td>
         <td>${num(m.hbv.nse)}</td><td>${num(m.hbv.kge)}</td><td>${num(m.hbv.crps)}</td></tr>`);
-    if (!m.tft) rows.unshift(`<tr><td colspan="4">O artigo não tem previsões do TFT para esta bacia neste modo.</td></tr>`);
+    if (!m.tft) rows.unshift(`<tr><td colspan="4">O artigo não tem simulações do TFT para esta bacia neste modo.</td></tr>`);
     $('metrics').innerHTML = `<thead><tr><th>Modelo (${period}, antecedência 3 dias)</th><th>NSE</th><th>KGE</th><th>CRPS</th></tr></thead><tbody>${rows.join('')}</tbody>`;
   }
 
   function renderLegend() {
     const items = [['line', '--obs', 'Observado'], ['line', '--tft', 'TFT: mediana'], ['band', '--tft-band', 'TFT: intervalo 10–90 %']];
     if (state.hbv) items.push(['dash', '--hbv', 'HBV']);
+    if (showLstm()) items.push(['dot', '--lstm', 'LSTM: mediana']);
     $('legend').innerHTML = items.map(([kind, tok, t]) => `<span>${key(kind, tok)}${t}</span>`).join('');
     $('split-legend').innerHTML = Object.values(SPLIT).map(([t, tok]) =>
       `<span><span class="swatch" style="background:var(${tok})"></span> ${t}</span>`).join('');
@@ -562,6 +571,14 @@ a { color: var(--tft); }
       b.setAttribute('aria-pressed', String(b.dataset.mode === state.mode));
       b.disabled = !c.available[b.dataset.mode];
     });
+    const lstmOk = state.mode === 'U' && c.available.L;
+    $('opt-lstm').disabled = !lstmOk;
+    $('lbl-lstm').title = lstmOk ? '' : 'O LSTM só foi avaliado em condições de bacia não monitorizada';
+  }
+
+  function showLstm() {
+    const c = state.meta && current();
+    return state.lstm && state.mode === 'U' && !!(c && c.available.L);
   }
 
   async function select(code) {
@@ -583,9 +600,9 @@ a { color: var(--tft); }
   }
 
   // ---------------------------------------------------------------- metric map
-  const COMBOS = [['U', 'tft'], ['U', 'hbv'], ['S', 'tft'], ['S', 'hbv']];
+  const COMBOS = [['U', 'tft'], ['U', 'lstm'], ['U', 'hbv'], ['S', 'tft'], ['S', 'hbv']];
   const PERIOD = { U: 'registo completo', S: 'período de teste' };
-  const sourceName = (mode, model) => `${model === 'tft' ? `TFT ${MODES[mode].toLowerCase()}` : 'HBV calibrado na bacia'} (${PERIOD[mode]})`;
+  const sourceName = (mode, model) => `${model === 'hbv' ? 'HBV calibrado na bacia' : `${model.toUpperCase()} ${MODES[mode].toLowerCase()}`} (${PERIOD[mode]})`;
 
   function valueOf(c, mode, model, metric) {
     const r = ((c.metrics || {})[mode] || {})[model];
@@ -629,12 +646,13 @@ a { color: var(--tft); }
 
   function renderMetricControls() {
     const def = METRICS[state.metric];
-    if (def.tftOnly) state.model = 'tft';
+    const why = (model) => (model === 'hbv' && def.noHbv ? 'Métrica não calculada para o HBV'
+      : model === 'lstm' && state.mmode !== 'U' ? 'O LSTM só foi avaliado em condições de bacia não monitorizada' : '');
+    if (why(state.model)) state.model = 'tft';
     document.querySelectorAll('[data-mmode]').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.mmode === state.mmode)));
     document.querySelectorAll('[data-model]').forEach((b) => {
-      const off = b.dataset.model === 'hbv' && def.tftOnly;
-      b.disabled = off;
-      b.title = off ? 'Métrica não calculada para o HBV' : '';
+      b.disabled = !!why(b.dataset.model);
+      b.title = why(b.dataset.model);
       b.setAttribute('aria-pressed', String(b.dataset.model === state.model));
     });
     $('metric-select').value = state.metric;
@@ -707,6 +725,7 @@ a { color: var(--tft); }
       renderControls(); render(true);
     }));
     $('opt-hbv').addEventListener('change', (e) => { state.hbv = e.target.checked; render(false); });
+    $('opt-lstm').addEventListener('change', (e) => { state.lstm = e.target.checked; render(false); });
     $('opt-log').addEventListener('change', (e) => {
       state.log = e.target.checked;
       const s = state.charts.q.scales.x, keep = [s.min, s.max];
@@ -732,7 +751,7 @@ a { color: var(--tft); }
 
   async function start() {
     try {
-      const [meta, map] = await Promise.all([fetch('meta.json?v=a32c24c5b3').then((r) => r.json()), fetch('map.json?v=a32c24c5b3').then((r) => r.json())]);
+      const [meta, map] = await Promise.all([fetch('meta.json?v=0fcae2390c').then((r) => r.json()), fetch('map.json?v=0fcae2390c').then((r) => r.json())]);
       state.meta = meta; state.map = map;
       const t0 = Date.parse(meta.start + 'T12:00:00Z') / 1000;
       state.x = Array.from({ length: meta.n }, (_, i) => t0 + i * 86400);
